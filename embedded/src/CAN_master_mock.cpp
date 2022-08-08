@@ -24,7 +24,7 @@
 
 // FlexCAN can = FlexCAN(CAN_BAUD, CAN_CH, CAN_TX_ALT, CAN_RX_ALT);
 FlexCAN can0 = FlexCAN(500000, 0);
-FlexCAN can1 = FlexCAN(500000, 1);
+FlexCAN can1 = FlexCAN(250000, 1);
 
 CAN_message_t EEC1_msg {
     0x0CF00400,  // ID

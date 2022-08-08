@@ -47,7 +47,7 @@ CAN_MSG_BIT_MAPPING = (
     Field('index',               16),
     Field('bus_id',               8),
     Field(' ',                    8),  # Bit padding, for 32-bit words
-    Field('tstamp',              32),  # millis since start
+    Field('tstamp',              32),  # micros since start
     Field('id',                  32),
     Field('ext',                  8),
     Field('len',                  8),
@@ -124,7 +124,7 @@ class CANReader(object):
 
 
         # Open the Serial port
-        ser = open_serial_port_blocking()
+        ser = open_serial_port_blocking(port_path=port_path)
         # Initialize the SerialReader (handles the serial bytes and checksums and stuff)
         self.reader = SerialReader(ser, verbose=True, logger=logger)
 
@@ -166,7 +166,7 @@ class CANReader(object):
 
                 # Log first time
                 if self.start_msg_t is None:
-                    self.start_msg_t = self.canmsg['tstamp']/1000.0
+                    self.start_msg_t = self.canmsg['tstamp']/1E6
 
                 # Count messages
                 self.msg_count += 1
@@ -199,7 +199,7 @@ class CANReader(object):
             self.logger.debug("  data: {}".format(bytearr_to_hexstr(byte_data)))
         else:
             self.logger.debug("({:010.3f}) can{:d} {:08X}#{:s}".format(
-                self.canmsg['tstamp']/1000.0,
+                self.canmsg['tstamp']/1E6,
                 self.canmsg['bus_id'],
                 self.canmsg['id'],
                 bytearr_to_hexstr(byte_data, delimiter=''),
@@ -211,7 +211,7 @@ class CANReader(object):
             byte_data = struct.pack('<Q', self.canmsg['data'])
             if canparse_fmt:
                 self.data_log.info("{:s} {:d} {:08X}x  Rx d {:d} {:s} ".format(
-                    "{:.6f}".format(self.canmsg['tstamp']/1000.0-self.start_msg_t).rjust(11, ' '),
+                    "{:.6f}".format(self.canmsg['tstamp']/1E6-self.start_msg_t).rjust(11, ' '),
                     self.canmsg['bus_id']+1,
                     self.canmsg['id'],
                     self.canmsg['len'],
@@ -219,7 +219,7 @@ class CANReader(object):
                 ))
             else:
                 self.data_log.info("({:010.3f}) can{:d} {:08X}#{:s}".format(
-                    self.canmsg['tstamp']/1000.0,
+                    self.canmsg['tstamp']/1E6,
                     self.canmsg['bus_id'],
                     self.canmsg['id'],
                     bytearr_to_hexstr(byte_data, delimiter=''),
@@ -240,7 +240,7 @@ def open_serial_port_blocking(serial_num=None, port_path=None):
     """ Try open serial port, and wait until successful """
     last_waiting_t = time()
     while True:
-        ser = open_serial_port()
+        ser = open_serial_port(port_path=port_path)
         if ser is not None:
             break
         sleep(0.1)
@@ -320,8 +320,8 @@ def main():
     )
 
     datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    datalogname = datetime_str + ".log"
-    cr = CANReader(logger=logger, datalogname=datalogname)
+    datalogname = datetime_str + ".asc"
+    cr = CANReader(logger=logger, datalogname=datalogname, port_path="COM7")
 
     try:
         cr.run()

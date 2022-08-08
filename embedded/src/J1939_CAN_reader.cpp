@@ -83,7 +83,7 @@ union CANMsg {
         uint16_t ind;       // Track msg number (recevied by uC)
         uint8_t bus_id;     // Which bus is this on
         uint8_t  : 8;       // Byte padding, for 32-bit words
-        uint32_t tstamp;    // milliseconds since launch
+        uint32_t tstamp;    // microseconds since launch
         CAN_message_t msg;
         // CAN_message_t struct for reference
         //          typedef struct CAN_message_t {
@@ -199,7 +199,7 @@ void readCAN(FlexCAN* can, uint8_t bus_id) {
         can_msg.fields.ind++;
 
         can_msg.fields.bus_id = bus_id;
-        can_msg.fields.tstamp = millis();
+        can_msg.fields.tstamp = micros();
 
         // Calculate the checksum
         uint16_t chksm = Fletcher16(can_msg.raw, sizeof(can_msg.fields));
