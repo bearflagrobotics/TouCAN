@@ -7,13 +7,15 @@ Copyright 2022 Bear Flag Robotics
     Date:   Aug 2022
 """
 
-import sys, os
+import sys
+import os
 import argparse
 
 def main():
+    """ TODO """
 
     ## Parse CLI input
-    if not len(sys.argv) > 1:
+    if len(sys.argv) <= 1:
         print("  Error: Needs an input file")
         print("  Usage: python convert_asc_to_log.py logs/test.asc")
         print("         (Saves output file with same name/dir but different extension)")

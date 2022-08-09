@@ -168,7 +168,7 @@ void loop() {
     }
     if (Serial) serial_up = true;
 
-    // Read from CAN busses
+    // Read from CAN buses
     readCAN(&can0, 0);
     readCAN(&can1, 1);
 

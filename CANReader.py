@@ -1,4 +1,3 @@
-
 """
 Copyright 2022 Bear Flag Robotics
 
@@ -19,26 +18,17 @@ Copyright 2022 Bear Flag Robotics
 
 """
 
-# from __future__ import print_function
-# Disable 'pylint: warning C0326 - Exactly one space required after comma'
-# pylint: disable=C0326
 # pylint: disable=C0103
 
 from collections import namedtuple, OrderedDict
 
 from time import time, sleep
+from datetime import datetime
 import logging
 import struct
 import serial
 import serial.tools.list_ports
-from datetime import datetime
-
-import os
-if os.name == 'nt': # Windows
-    os.system('color')
-
 from SerialReader import SerialReader
-
 
 # Define namedtuple for bit mapping field (for readability)
 Field = namedtuple('Field', 'name width')
@@ -106,7 +96,7 @@ class CANReader(object):
         # Log data to file?
         self.data_log = None
         if datalogname:
-            self.logger.info("Logging data to '{}'".format(datalogname))
+            self.logger.info("Logging data to '%s'", datalogname)
             self.data_log = logging.getLogger("data")
             self.data_log.setLevel(logging.DEBUG)
             file_handler = logging.FileHandler(datalogname)
@@ -143,8 +133,10 @@ class CANReader(object):
         self.status_print_t = time()
         self.STATUS_PRINT_PERIOD = 5.0 # seconds
 
+        self.buses_seen = set() # Log bus activity
 
     def run(self):
+        """ TODO """
 
         # Start a thread to read serial data
         self.reader.read_threaded()
@@ -168,11 +160,17 @@ class CANReader(object):
                 if self.start_msg_t is None:
                     self.start_msg_t = self.canmsg['tstamp']/1E6
 
+                # Log first data on buses
+                if self.canmsg['bus_id'] not in self.buses_seen:
+                    self.buses_seen.add(self.canmsg['bus_id'])
+                    self.logger.info("  Received first msg on bus %d", self.canmsg['bus_id'])
+
                 # Count messages
                 self.msg_count += 1
                 if time() - self.status_print_t > self.STATUS_PRINT_PERIOD:
                     self.status_print_t = time()
-                    self.logger.info("Received {} msgs in last {} secs".format(self.msg_count, self.STATUS_PRINT_PERIOD))
+                    self.logger.info("Received %d msgs in last %.1f secs",
+                                     self.msg_count, self.STATUS_PRINT_PERIOD)
                     self.msg_count = 0
 
                 # Print the data
@@ -180,50 +178,50 @@ class CANReader(object):
                 # Log data to file
                 self.log_can_data(canparse_fmt=True)
 
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as exc:
             self.data_log.info("End TriggerBlock")
-            raise KeyboardInterrupt
+            raise exc
 
 
     def print_can_msg_data(self, verbose=False):
         """ Print CAN msg data to logger (terminal/file) """
         byte_data = struct.pack('<Q', self.canmsg['data'])
         if verbose:
-            self.logger.debug("Index: {}".format(self.canmsg['index']))
-            self.logger.debug("  time: {}".format(self.canmsg['tstamp']))
-            self.logger.debug("  bus_id: {}".format(self.canmsg['bus_id']))
-            self.logger.debug("  id: 0x{:08X}".format(self.canmsg['id']))
-            self.logger.debug("  ext: {}".format(self.canmsg['ext']))
-            self.logger.debug("  len: {}".format(self.canmsg['len']))
-            self.logger.debug("  timeout: {}".format(self.canmsg['timeout']))
-            self.logger.debug("  data: {}".format(bytearr_to_hexstr(byte_data)))
+            self.logger.debug("Index: %d", self.canmsg['index'])
+            self.logger.debug("  time: %f", self.canmsg['tstamp'])
+            self.logger.debug("  bus_id: %d", self.canmsg['bus_id'])
+            self.logger.debug("  id: 0x%08X", self.canmsg['id'])
+            self.logger.debug("  ext: %d", self.canmsg['ext'])
+            self.logger.debug("  len: %d", self.canmsg['len'])
+            self.logger.debug("  timeout: %d", self.canmsg['timeout'])
+            self.logger.debug("  data: %s", bytearr_to_hexstr(byte_data))
         else:
-            self.logger.debug("({:010.3f}) can{:d} {:08X}#{:s}".format(
+            self.logger.debug("(%010.6f) can%d %08X#%s",
                 self.canmsg['tstamp']/1E6,
                 self.canmsg['bus_id'],
                 self.canmsg['id'],
-                bytearr_to_hexstr(byte_data, delimiter=''),
-            ))
+                bytearr_to_hexstr(byte_data, delimiter='')
+            )
 
     def log_can_data(self, canparse_fmt=True):
         """ Log data to log file """
         if self.data_log is not None:
             byte_data = struct.pack('<Q', self.canmsg['data'])
             if canparse_fmt:
-                self.data_log.info("{:s} {:d} {:08X}x  Rx d {:d} {:s} ".format(
-                    "{:.6f}".format(self.canmsg['tstamp']/1E6-self.start_msg_t).rjust(11, ' '),
+                self.data_log.info("%s %d %08Xx  Rx d %d %s",
+                    f"{(self.canmsg['tstamp']/1E6-self.start_msg_t):.6f}".rjust(11, ' '),
                     self.canmsg['bus_id']+1,
                     self.canmsg['id'],
                     self.canmsg['len'],
                     bytearr_to_hexstr(byte_data, delimiter=' '),
-                ))
+                )
             else:
-                self.data_log.info("({:010.3f}) can{:d} {:08X}#{:s}".format(
+                self.data_log.info("(%010.3f) can%d %08X#%s",
                     self.canmsg['tstamp']/1E6,
                     self.canmsg['bus_id'],
                     self.canmsg['id'],
                     bytearr_to_hexstr(byte_data, delimiter=''),
-                ))
+                )
 
 ##############################################
 ############ External Functions ##############
@@ -240,7 +238,7 @@ def open_serial_port_blocking(serial_num=None, port_path=None):
     """ Try open serial port, and wait until successful """
     last_waiting_t = time()
     while True:
-        ser = open_serial_port(port_path=port_path)
+        ser = open_serial_port(serial_num=serial_num, port_path=port_path)
         if ser is not None:
             break
         sleep(0.1)
@@ -250,10 +248,10 @@ def open_serial_port_blocking(serial_num=None, port_path=None):
     return ser
 
 def open_serial_port(serial_num=None, port_path=None):
-    """ Simple wrapper function for handling opening a serial port. Returns the opened serial port"""
+    """ Simple wrapper function for handling opening serial port. Returns the opened serial port"""
 
     if serial_num is not None:
-        print("Trying to connect to uC with serial#='{}'".format(serial_num))
+        print(f"Trying to connect to uC with serial#='{serial_num}'")
         # Get port number and verify opened. If unable to open, print error and quit node.
         port_path = get_port_number(serial_num) # returns None if not found.
         if port_path is None:
@@ -261,7 +259,7 @@ def open_serial_port(serial_num=None, port_path=None):
             # print("Shutting down.")
             return None
         else:
-            print("uC connected on port_path='{}'".format(port_path))
+            print(f"uC connected on port_path='{port_path}'")
             ser = serial.Serial(port_path, 1, timeout=0)
             sleep(0.5)
             ser.flush()
@@ -269,7 +267,7 @@ def open_serial_port(serial_num=None, port_path=None):
             return ser
 
     elif port_path is not None:
-        print("uC connected on port_path='{}'".format(port_path))
+        print(f"uC connected on port_path='{port_path}'")
         ser = serial.Serial(port_path, 1, timeout=0)
         sleep(0.5)
         ser.flush()
@@ -283,7 +281,7 @@ def open_serial_port(serial_num=None, port_path=None):
         for port in ports:
             if (port.pid == TEENSY_PID) and (port.vid == TEENSY_VID):
                 port_path = port.device
-                print("uC connected on port_path='{}'".format(port_path))
+                print(f"uC connected on port_path='{port_path}'")
                 ser = serial.Serial(port_path, 1, timeout=0)
                 sleep(0.5)
                 ser.flush()
@@ -298,30 +296,52 @@ def get_port_number(serial_number):
     ports = list(serial.tools.list_ports.grep(serial_number))
     if len(ports) > 0:
         return ports[0].device
-    else:
-        return None
+    return None
 
 def bytearr_to_hexstr(arr, delimiter=' '):
     """ Convert a byte array to a hex string """
-    return '{}'.format(delimiter).join(format(x, '02X') for x in arr)
+    return f'{delimiter}'.join(format(x, '02X') for x in arr)
 
 # ==================================================================================================
 
 def main():
+    """ TODO """
 
-    from datetime import datetime
-    from CustomLogger import CustomLogger
+    ###############################################################################################
+    ## Parse CLI input
+    import argparse
+    # Argparser
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', '-p',
+                        help="Path to the device (eg. /dev/ttyACM0 (Unix), or COM7 (Windows)",
+                        type=str, default=None)
+    parser.add_argument('--verbose', '-v', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--color', '-c', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--debug', '-d', action=argparse.BooleanOptionalAction)
+    args = parser.parse_args()
+    # Condition Args
+    port_path = args.path
+    verbose = args.verbose
+    color = args.color
+    logger_lvl = logging.DEBUG if args.debug else logging.INFO
+    ###############################################################################################
 
-    logger = CustomLogger(
-        "CANReader.py",
-        level=logging.INFO,
-        # level=logging.DEBUG, # Uncomment this to see traffic
-        verbose=True, color=True
-    )
+    try:
+        from CustomLogger import CustomLogger
+        # Init Logger
+        logger = CustomLogger(
+            "CANReader.py",
+            level=logger_lvl,
+            verbose=verbose,
+            color=color
+        )
+    except ModuleNotFoundError as e:
+        print(f"  Failed to load CustomLogger: {e}")
+        logger = logging.getLogger()
 
     datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     datalogname = datetime_str + ".asc"
-    cr = CANReader(logger=logger, datalogname=datalogname, port_path="COM7")
+    cr = CANReader(logger=logger, datalogname=datalogname, port_path=port_path)
 
     try:
         cr.run()

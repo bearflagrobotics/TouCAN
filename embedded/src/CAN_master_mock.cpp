@@ -42,8 +42,6 @@ CAN_message_t EEC2_msg {
     {0xFF, 0xFE, 0x1C, 0xFF, 0xFF, 0xFF, 0xC3, 0xFF}  // Data
 };
 
-// CAN_message_t rx_msg;
-
 uint32_t last_EEC2_msg_t;
 
 const uint8_t LED_PIN = 13;

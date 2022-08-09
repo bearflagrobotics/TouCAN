@@ -7,23 +7,15 @@ Copyright 2022 Bear Flag Robotics
     Date:   Aug 2022
 """
 
-import sys, os
+import sys
+import os
 import argparse
-
-### Input definitions
-##
-LOG_DIR = "logs/"
-LOG_FILENAME = "5R_AutoTracEngaged_TouCAN.log" # <== Edit this file!
-
-## Define relative paths
-ASC_FILENAME = "".join(LOG_FILENAME.split(".")[:-1]) + ".asc"
-LOG_FILENAME = LOG_DIR + LOG_FILENAME
-ASC_FILENAME = LOG_DIR + ASC_FILENAME
 
 def main():
 
+    ###############################################################################################
     ## Parse CLI input
-    if not len(sys.argv) > 1:
+    if len(sys.argv) <= 1:
         print("  Error: Needs an input file")
         print("  Usage: python convert_log_to_asc.py logs/test.log")
         print("         (Saves output file with same name/dir but different extension)")
@@ -40,6 +32,7 @@ def main():
     log_filename = args.logfile
     asc_filename = os.path.splitext(log_filename)[0] + '.asc'
 
+    ###############################################################################################
     # Load input
     print(f"  Reading '{log_filename}'...")
     with open(log_filename, 'r', encoding='utf-8') as infile:
@@ -47,7 +40,6 @@ def main():
 
     # Trim beginning and end lines
     lines = lines[:-1]
-    # lines = lines[:10]
 
     # Create output
     print(f"  Writing '{asc_filename}'...")

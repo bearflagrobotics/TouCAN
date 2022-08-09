@@ -1,4 +1,6 @@
 """
+Copyright 2022 Bear Flag Robotics
+
     ColoredLogger.py
 
         Custom colored logging library
@@ -6,16 +8,19 @@
         Author: Austin chun
         Date: Aug 2022
 """
+# pylint: disable=C0103
 
 import logging
 
 import os
+
 if os.name == 'nt': # Windows
     os.system('color')
 else: # other (unix)
     pass
 
 class ColoredFormatter(logging.Formatter):
+    """ TODO """
 
     cyan = "\033[96m"
     yellow = "\033[93m"
@@ -77,6 +82,7 @@ class ColoredFormatter(logging.Formatter):
         return formatter.format(record)
 
 class CustomLogger(logging.Logger):
+    """ TODO """
 
     def __init__(self, name, level=logging.DEBUG, filename=None, verbose=False, color=False):
         logging.Logger.__init__(self, name, level)

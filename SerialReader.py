@@ -1,18 +1,13 @@
-### """### !/usr/bin/env python"""
-
 """
 Copyright 2022 Bear Flag Robotics
 
-    Teensy_Serial_Interface.py
+    SerialReader.py
 
         Author: Austin Chun
         Date:   Aug 2022
 
 """
 
-# from __future__ import print_function
-# Disable 'pylint: warning C0326 - Exactly one space required after comma'
-# pylint: disable=C0326
 # pylint: disable=C0103
 
 from time import time, sleep
@@ -102,6 +97,7 @@ class SerialReader(object):
             # sleep(0.001)
 
     def get_data(self):
+        """ TODO """
 
         try:
             return self.data_queue.get_nowait()
@@ -159,7 +155,9 @@ class SerialReader(object):
             elif self._read_state == self.ReadState.READ_IDX:
                 if (self._msg_index is not None) and (cur_c != (self._msg_index + 1)%256):
                     self._dropped_packets_count += (cur_c - (self._msg_index + 1)%256)
-                    self.logger.warning("Missed {} msgs (total missed = {})".format(cur_c - (self._msg_index + 1)%256, self._dropped_packets_count))
+                    self.logger.warning("Missed %d msgs (total missed = %d)",
+                                        cur_c - (self._msg_index + 1)%256,
+                                        self._dropped_packets_count)
                 # Next State
                 self._msg_index = cur_c
                 self._read_state = self.ReadState.READ_LEN # Move to next state
@@ -200,7 +198,7 @@ class SerialReader(object):
                             self.data_queue.put_nowait(self._data_buff[:self._data_len_exp]) # Store the data
                     else:
                         self._bad_chksm_count += 1
-                        self.logger.warning("Invalid chksm. (total invalid chksms: {})".format(self._bad_chksm_count))
+                        self.logger.warning("Invalid chksm. (total invalid chksms: %d)", self._bad_chksm_count)
 
                     self._read_state = self.ReadState.READ_START
 
@@ -212,7 +210,7 @@ class SerialReader(object):
         sum1 = 0
         sum2 = 0
 
-        for index in range(len(data)):
+        for index in range(len(data)): # pylint: disable=C0200 # Make it C-like for code sharing
             sum1 = (sum1 + data[index]) % 255
             sum2 = (sum2 + sum1) % 255
 
@@ -222,7 +220,7 @@ class SerialReader(object):
         res = (calc_chksm == chksm)
 
         if not res:
-            self.logger.warning("Invalid chksm. Rcvd: {:X}, Calc: {:X}".format(chksm, calc_chksm))
+            self.logger.warning("Invalid chksm. Rcvd: %X, Calc: %X", chksm, calc_chksm)
 
         return calc_chksm == chksm
 
@@ -235,7 +233,7 @@ def open_serial_port_blocking(serial_num=None, port_path=None):
     """ Try open serial port, and wait until successful """
     last_waiting_t = time()
     while True:
-        ser = open_serial_port()
+        ser = open_serial_port(serial_num=serial_num, port_path=port_path)
         if ser is not None:
             break
         sleep(0.1)
@@ -244,11 +242,12 @@ def open_serial_port_blocking(serial_num=None, port_path=None):
             print("No Serial port found. Waiting...")
     return ser
 
+
 def open_serial_port(serial_num=None, port_path=None):
-    """ Simple wrapper function for handling opening a serial port. Returns the opened serial port"""
+    """ Simple wrapper function for handling opening serial port. Returns the opened serial port"""
 
     if serial_num is not None:
-        print("Trying to connect to uC with serial#='{}'".format(serial_num))
+        print(f"Trying to connect to uC with serial#='{serial_num}'")
         # Get port number and verify opened. If unable to open, print error and quit node.
         port_path = get_port_number(serial_num) # returns None if not found.
         if port_path is None:
@@ -256,7 +255,7 @@ def open_serial_port(serial_num=None, port_path=None):
             # print("Shutting down.")
             return None
         else:
-            print("uC connected on port_path='{}'".format(port_path))
+            print(f"uC connected on port_path='{port_path}'")
             ser = serial.Serial(port_path, 1, timeout=0)
             sleep(0.5)
             ser.flush()
@@ -264,13 +263,13 @@ def open_serial_port(serial_num=None, port_path=None):
             return ser
 
     elif port_path is not None:
-        print("uC connected on port_path='{}'".format(port_path))
+        print(f"uC connected on port_path='{port_path}'")
         ser = serial.Serial(port_path, 1, timeout=0)
         sleep(0.5)
         ser.flush()
         sleep(0.5)
         return ser
-    
+
     else: # Look for Teensy PID/VID
         TEENSY_PID = 0x0483
         TEENSY_VID = 0x16C0
@@ -278,7 +277,7 @@ def open_serial_port(serial_num=None, port_path=None):
         for port in ports:
             if (port.pid == TEENSY_PID) and (port.vid == TEENSY_VID):
                 port_path = port.device
-                print("uC connected on port_path='{}'".format(port_path))
+                print(f"uC connected on port_path='{port_path}'")
                 ser = serial.Serial(port_path, 1, timeout=0)
                 sleep(0.5)
                 ser.flush()
@@ -288,32 +287,59 @@ def open_serial_port(serial_num=None, port_path=None):
         # print("Shutting down.")
         return None
 
+
 def get_port_number(serial_number):
     """ return port number for serial_number or None if not found. """
     ports = list(serial.tools.list_ports.grep(serial_number))
     if len(ports) > 0:
         return ports[0].device
-    else:
-        return None
+    return None
 
 def bytearr_to_hexstr(arr, delimiter=' '):
     """ Convert a byte array to a hex string """
-    return '{}'.format(delimiter).join(format(x, '02X') for x in arr)
+    return f'{delimiter}'.join(format(x, '02X') for x in arr)
 
 
 # ==================================================================================================
 
 def main():
+    """ TODO """
 
-    from CustomLogger import CustomLogger
+    ###############################################################################################
+    ## Parse CLI input
+    import argparse
+    # Argparser
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', '-p',
+                        help="Path to the device (eg. /dev/ttyACM0 (Unix), or COM7 (Windows)",
+                        type=str, default=None)
+    parser.add_argument('--verbose', '-v', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--color', '-c', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--debug', '-d', action=argparse.BooleanOptionalAction)
+    args = parser.parse_args()
+    # Condition Args
+    port_path = args.path
+    verbose = args.verbose
+    color = args.color
+    logger_lvl = logging.DEBUG if args.debug else logging.INFO
+    ###############################################################################################
 
-    logger = CustomLogger("SerialReader.py",
-        level=logging.DEBUG,
-        verbose=True, color=True
-    )
+    try:
+        from CustomLogger import CustomLogger
+        # Init Logger
+        logger = CustomLogger(
+            "SerialReader.py",
+            level=logger_lvl,
+            verbose=verbose,
+            color=color
+        )
+    except ModuleNotFoundError as e:
+        print(f"  Failed to load CustomLogger: {e}")
+        logger = logging.getLogger()
+
 
     # Establish serial connection
-    ser = open_serial_port_blocking()
+    ser = open_serial_port_blocking(port_path=port_path)
 
     # Initialize SerialReader object (for threaded serial read process)
     reader = SerialReader(ser, verbose=True, logger=logger)
@@ -329,7 +355,7 @@ def main():
             if data_msg is None:
                 sleep(0.001)
                 continue
-            logger.info("RX: {}".format(bytearr_to_hexstr(data_msg)))
+            logger.info("RX: %s", bytearr_to_hexstr(data_msg))
 
     except KeyboardInterrupt:
         logger.warning("User exited w/ Ctrl+C.")
