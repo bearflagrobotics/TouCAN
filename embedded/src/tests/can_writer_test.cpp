@@ -1,30 +1,22 @@
 /**
- *  Copyright 2020 Bear Flag Robotics
+ *  Copyright 2022 Bear Flag Robotics
  *
- *  CAN_master_mock.cpp
+ *  can_writer_test.cpp
  *
- *      Spoof some CAN messages, to simulate 6130 diagnostics port.
- *      This uses the FlexCAN library for the Teensy 3.6
+ *      TODO
  *
  *      Author: Austin Chun
- *      Date:   Apr 2020
+ *      Date:   Aug 2022
  *
  */
 
 #include <Arduino.h>
 
-#include <FlexCAN.h>
+#include <can_driver.cpp>
 
 
-#define CAN_BAUD    500000
-#define CAN_CH      0
-#define CAN_RX_ALT  0
-#define CAN_TX_ALT  0
-
-
-// FlexCAN can = FlexCAN(CAN_BAUD, CAN_CH, CAN_TX_ALT, CAN_RX_ALT);
-FlexCAN can0 = FlexCAN(500000, 0);
-FlexCAN can1 = FlexCAN(250000, 1);
+CanDriver can0 = CanDriver(500000, 0);
+CanDriver can1 = CanDriver(250000, 1);
 
 CAN_message_t EEC1_msg {
     0x0CF00400,  // ID
@@ -49,25 +41,15 @@ bool led_state = 0;
 uint32_t last_led_t;  // Log time of last LED toggle
 uint32_t led_wait_time;  // How long between LED toggles (changes based on USB connection)
 
-bool serial_up = false; // Flag to indicate if Serial port open for printing
-
 
 ////////////////////////////////////////////////////////////////////////////
 ///                         Setup/Loop Functions                         ///
 ////////////////////////////////////////////////////////////////////////////
 
 void setup() {
-    // Serial.begin(1);
-    // // delay(1000);
-    // while (!Serial) {}
-    // Serial.println("Running 'CAN_master_mock'");
-
-    can0.begin();  // No mask, let everything through
-    can1.begin();  // No mask, let everything through
-
+    // can0.begin();  // No mask, let everything through
+    // can1.begin();  // No mask, let everything through
     pinMode(LED_PIN, OUTPUT);
-
-    // Serial.println("Initialization Complete.");
 }
 
 
@@ -84,8 +66,8 @@ void loop() {
     // Periodically write some CAN msgs to CAN bus
     if (millis() - last_EEC2_msg_t > 100) {
         last_EEC2_msg_t = millis();
-        can0.write(EEC1_msg);
-        can1.write(EEC2_msg);
+        can0.WriteCan(EEC1_msg);
+        can1.WriteCan(EEC2_msg);
     }
 
     // Blink the LED (slow when serial down, fast when serial up)
@@ -95,6 +77,9 @@ void loop() {
         digitalWriteFast(LED_PIN, led_state);
         led_state = !led_state;
     }
+
+    // Read CAN
+
 
     // // Print CAN msgs if Serial up
     // if (serial_up) {

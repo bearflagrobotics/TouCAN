@@ -17,63 +17,20 @@
 
 // #include <emb_version.h>
 
-#define CAN_BAUD    500000
-#define CAN_CH      0
-#define CAN_RX_ALT  0
-#define CAN_TX_ALT  0
-// #ifndef CANREADER_VERSION
-//     #error "CANREADER_VERSION is not defined. Pleae verify 'include/emb_version.h'"
-// #elif CANREADER_VERSION == 1
-//     #define CAN_CH      0
-//     #define CAN_RX_ALT  1
-//     #define CAN_TX_ALT  1
-// #elif CANREADER_VERSION == 2
-//     #define CAN_CH      0
-//     #define CAN_RX_ALT  0
-//     #define CAN_TX_ALT  0
-// #else
-//     #error "Invalid CANREADER_VERSION. Check Version."
-// #endif
-
 #define START_BYTE  0x00
 #define SYNCH_BYTE  0x55
 
-// // Mask and Filters generated with script 'can_filter_generator.py' as a helper.
-// // Effectively, determined optimal Mask and Filter given desired PGNs
-// // 32-bit number split: filler, priority, rsv, dpg, PDUF, PDUS, source
-// const uint32_t MASK_ID  = 0b000'000'1'1'11111111'11000000'00000000;
-// const uint32_t FILT0_ID = 0b000'000'0'0'10101100'11111111'00010011;
-// const uint32_t FILT1_ID = 0b000'000'0'0'11110000'00000011'00000000;
-// const uint32_t FILT2_ID = 0b000'000'0'0'11111101'11011111'00000000;
-// const uint32_t FILT3_ID = 0b000'000'0'0'11111110'00010001'00000000;
-// const uint32_t FILT4_ID = 0b000'000'0'0'11111110'01000011'00000000;
-// const uint32_t FILT5_ID = 0b000'000'0'0'11111110'11100101'00000000;
-// const uint32_t FILT6_ID = 0b000'000'0'0'11111111'01100101'00000000;
-// const uint32_t FILT7_ID = 0b000'000'0'0'11111111'11111110'00000000;
-// // Create the actual filter structs
-// const CAN_filter_t MASK  {0, 1, MASK_ID};
-// const CAN_filter_t FILT0 {0, 1, FILT0_ID};
-// const CAN_filter_t FILT1 {0, 1, FILT1_ID};
-// const CAN_filter_t FILT2 {0, 1, FILT2_ID};
-// const CAN_filter_t FILT3 {0, 1, FILT3_ID};
-// const CAN_filter_t FILT4 {0, 1, FILT4_ID};
-// const CAN_filter_t FILT5 {0, 1, FILT5_ID};
-// const CAN_filter_t FILT6 {0, 1, FILT6_ID};
-// const CAN_filter_t FILT7 {0, 1, FILT7_ID};
 
 const uint8_t LED_PIN = 13;
 bool LED_STATE = 0;
 
-
 // Create CAN Bus object
-// FlexCAN can = FlexCAN(CAN_BAUD, CAN_CH, CAN_TX_ALT, CAN_RX_ALT);
 FlexCAN can0 = FlexCAN(500000, 0);
 FlexCAN can1 = FlexCAN(250000, 1);
 
 uint32_t last_can_msg_t;
 uint32_t last_led_t;  // Log time of last LED toggle
 uint32_t led_wait_time;  // How long between LED toggles (changes based on USB connection)
-// const uint32_t MAX_CAN_MSG_SPACING = 100;  // CAN msgs should be arriving at least at 10 Hz
 
 
 // Simple Union to allow easy read/write of CAN msg struct
@@ -125,16 +82,6 @@ void setup() {
     // Set the Mask and Filter for the CAN object
     can0.begin();
     can1.begin();
-    // can.begin(MASK);
-    // can.setFilter(FILT0, 0);
-    // can.setFilter(FILT1, 1);
-    // can.setFilter(FILT2, 2);
-    // can.setFilter(FILT3, 3);
-    // can.setFilter(FILT4, 4);
-    // can.setFilter(FILT5, 5);
-    // can.setFilter(FILT6, 6);
-    // can.setFilter(FILT7, 7);
-
 
     // Setup Serial
     Serial.begin(1);
@@ -145,16 +92,8 @@ void setup() {
         }
     }
     serial_up = true;
+
     Serial.println("Running 'J1939_CAN_reader'");
-    // Serial.print("Mask: "); Serial.println(MASK_ID, HEX);
-    // Serial.print("Filt0: "); Serial.println(FILT0_ID, HEX);
-    // Serial.print("Filt1: "); Serial.println(FILT1_ID, HEX);
-    // Serial.print("Filt2: "); Serial.println(FILT2_ID, HEX);
-    // Serial.print("Filt3: "); Serial.println(FILT3_ID, HEX);
-    // Serial.print("Filt4: "); Serial.println(FILT4_ID, HEX);
-    // Serial.print("Filt5: "); Serial.println(FILT5_ID, HEX);
-    // Serial.print("Filt6: "); Serial.println(FILT6_ID, HEX);
-    // Serial.print("Filt7: "); Serial.println(FILT7_ID, HEX);
     Serial.println("Initialization Complete.");
 }
 
@@ -172,20 +111,14 @@ void loop() {
     readCAN(&can0, 0);
     readCAN(&can1, 1);
 
-    if (serial_up) led_wait_time = 100;
-    else           led_wait_time = 500;
+    // Blink the LED (slow when serial down, fast when serial up)
+    led_wait_time = serial_up ? 100 : 500;
     if (millis() - last_led_t > led_wait_time) {
         last_led_t = millis();
-        // Toggle LED
-        digitalWriteFast(LED_PIN, LED_STATE);
+        digitalWriteFast(LED_PIN, LED_STATE);  // Toggle LED
         LED_STATE = !LED_STATE;
-        // Serial.println("LED.");
     }
 
-    // if (millis() - last_can_msg_t > MAX_CAN_MSG_SPACING) {
-    //     last_can_msg_t = millis();
-    //     Serial.println("No Data");
-    // }
 }
 
 void readCAN(FlexCAN* can, uint8_t bus_id) {
