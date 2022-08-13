@@ -30,16 +30,51 @@ uint32_t print_last_t;
 ////////////////////////////////////////////////////////////////////////////
 
 void setup() {
+    while (!Serial) {}
+    Serial.begin(1);
+
     pinMode(LED_PIN, OUTPUT);
+
+    serial.PrintStringHeader();
+    Serial.println("Running serial_driver_test.cpp");
 }
 
 void loop() {
-    // Print data periodically
+    // Write data periodically
     if (millis() - print_last_t > 1000) {
         test_data[0]++;
         serial.WriteData(test_data, sizeof(test_data));
         print_last_t = millis();
+
+        // Print Strings
+        // WARNING: Calling Serial.print() when Serial not up will freeze the uC
+        if (serial.IsUp()) {
+            serial.PrintStringHeader();
+            Serial.print("uC Tx: Hello World! ");
+            Serial.print(test_data[0]);
+            Serial.println();
+        }
     }
+
+    // Read data from Serial
+    if (serial.Read()) {
+        // Echo back the bytes for verification
+        // serial.WriteData(serial.data_buff, serial.data_len_exp);
+
+        if (serial.IsUp()) {
+            serial.PrintStringHeader();
+            Serial.print("uC Rx: ");
+            for (int i = 0; i < serial.data_len_exp; ++i) {
+                Serial.print(serial.data_buff[i], HEX);
+                Serial.print(" ");
+            }
+            // Serial.print("Hello back!");
+            // Serial.print(test_data[0]);
+            Serial.println();
+        }
+
+    }
+
 
     // Blink the LED (slow when serial down, fast when serial up)
     led_wait_time = serial.IsUp() ? 100 : 500;

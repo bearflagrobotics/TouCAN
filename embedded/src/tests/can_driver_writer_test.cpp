@@ -20,7 +20,24 @@ SerialDriver serial = SerialDriver();
 CanDriver can0 = CanDriver(500000, 0);
 CanDriver can1 = CanDriver(250000, 1);
 
-CAN_message_t tx_msg;
+CAN_message_t EEC1_msg {
+    0x0CF00400,  // ID
+    1,           // Ext
+    8,           // Len
+    0,           // Timeout
+    {0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF}  // Data
+};
+
+CAN_message_t EEC2_msg {
+    0x0CF00300,  // ID
+    1,           // Ext
+    8,           // Len
+    0,           // Timeout
+    {0xFF, 0xFE, 0x1C, 0xFF, 0xFF, 0xFF, 0xC3, 0xFF}  // Data
+};
+
+uint32_t last_EEC2_msg_t;
+
 
 const uint8_t LED_PIN = 13;
 bool led_state = 1;
@@ -35,24 +52,17 @@ bool serial_up = false;
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
-
-    // Setup Serial
-    serial.begin(1);
-    while (!Serial) {  // Blocking wait for Serial port to open
-        if (millis() - led_last_t > 2000) {
-            led_last_t = millis();
-            digitalWriteFast(LED_PIN, led_state);
-            led_state = !led_state;  // Toggle LED
-        }
-    }
-    serial_up = true;
-    serial.println("Running 'can_driver_test.cpp'");
-
-    serial.println("Initialization Complete.");
 }
 
 
 void loop() {
+
+    // Periodically write some CAN msgs to CAN bus
+    if (millis() - last_EEC2_msg_t > 500) {
+        last_EEC2_msg_t = millis();
+        can0.WriteCan(EEC1_msg);
+        can1.WriteCan(EEC2_msg);
+    }
 
     // Read from CAN buses
     if (can0.ReadCan()) {
@@ -67,7 +77,6 @@ void loop() {
         // Echo back the bytes for verification
         // serial.WriteData(serial.data_buff, serial.data_len_exp);
 
-        // Echo back Serial
         if (serial.IsUp()) {
             serial.PrintStringHeader();
             Serial.print("uC Rx: ");
@@ -80,37 +89,12 @@ void loop() {
             Serial.println();
         }
 
-        // Echo CAN data to can bus
-        if (serial.msg_type == serial.kDataMsgType) {
-            tx_msg.id = serial.data_buff[3] << 24 |
-                        serial.data_buff[2] << 16 |
-                        serial.data_buff[1] <<  8 |
-                        serial.data_buff[0] <<  0;
-
-            tx_msg.ext = 1;
-            tx_msg.len = serial.data_len_exp - 4;  // Total msg length, minus ID
-            tx_msg.timeout = 0;
-            memcpy(tx_msg.buf, &serial.data_buff[4], tx_msg.len);
-
-            can0.WriteCan(tx_msg);
-
-            if (serial.IsUp()) {
-                serial.PrintStringHeader();
-                Serial.print("tx_msg.id: ");
-                Serial.print(tx_msg.id, HEX);
-                Serial.print(", tx_msg.len: ");
-                Serial.print(tx_msg.len, HEX);
-                Serial.println();
-            }
-
-        }
-
     }
 
-    // // Write (Relay) CAN msgs (from Serial to CAN)
-    // if (serial.available()) {
-    //     // TODO: Develop SerialParser, so can send CAN smgs from Python script
-    // }
+    // // // Write (Relay) CAN msgs (from Serial to CAN)
+    // // if (serial.available()) {
+    // //     // TODO: Develop SerialParser, so can send CAN smgs from Python script
+    // // }
 
     // Blink the LED (slow when serial down, fast when serial up)
     led_wait_time = serial.IsUp() ? 100 : 500;

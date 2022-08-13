@@ -16,6 +16,7 @@ from enum import IntEnum
 import logging
 import queue
 import threading
+import struct
 import serial
 import serial.tools.list_ports
 
@@ -36,17 +37,22 @@ class SerialReader(object):
     START_BYTES = bytearray([ 0x00, 0x55 ])
     START_BYTES_LEN = len(START_BYTES)
     SER_BUFFER_MAX_LEN = 100
-    DATA_BUFF_MAX_LEN = 256
+    DATA_BUFF_MAX_LEN = 255
     CHKSM_LEN = 2
     MAX_QUEUE_SIZE = 2000
+
+    DATA_MSG_TYPE = 0x01
+    STRING_MSG_TYPE = 0x02
 
     class ReadState(IntEnum):
         """ Map Read states to corresponding ints """
         READ_START = 0
-        READ_IDX = 1
-        READ_LEN = 2
-        READ_DATA = 3
-        READ_CHKSM = 4
+        READ_TYPE = 1
+        READ_IDX = 2
+        READ_LEN = 3
+        READ_DATA = 4
+        READ_CHKSM = 5
+        READ_STRING = 6
 
 
     def __init__(self, serial_object, verbose=False, logger=None):
@@ -77,6 +83,10 @@ class SerialReader(object):
 
         self._chksm = bytearray(self.CHKSM_LEN) # Store the 2-byte checksum
         self._chksm_i = 0 # Index the checksum array
+
+        self._string_buffer = ""
+
+        self.tx_msg_idx = 0
 
         # Diagnostics
         self._dropped_packets_count = 0 # number of packets dropped
@@ -113,6 +123,9 @@ class SerialReader(object):
         # Read number of bytes in buffer
         bytes_to_read = self.ser.in_waiting
 
+        # if bytes_to_read:
+        #     self.logger.debug("bytes_to_read: %d", bytes_to_read)
+
         # Read all bytes at once (convert from str to bytearray)
         self._ser_buffer += bytearray(self.ser.read(bytes_to_read))
 
@@ -139,6 +152,8 @@ class SerialReader(object):
             # print("cur_c: {:02X}".format(cur_c))
             i += 1
 
+            # self.logger.debug("ReadState: %s, CurC: 0x%02X", self._read_state, cur_c)
+
             # Read the Start Byte Sequence (eg. [0x00, 0x55])
             if self._read_state == self.ReadState.READ_START:
                 # Check against start_byte sequence
@@ -146,10 +161,26 @@ class SerialReader(object):
                     self._start_bytes_i += 1
                 else: # Incorrect, so restart
                     self._start_bytes_i = 0
+                    if cur_c == self.START_BYTES[0]:
+                        self._start_bytes_i = 1
                 # Next State
                 if self._start_bytes_i == self.START_BYTES_LEN: # Successful reads
                     self._start_bytes_i = 0                 # Restart the counter
-                    self._read_state = self.ReadState.READ_IDX # Move to next state
+                    self._read_state = self.ReadState.READ_TYPE # Move to next state
+
+            # Read the message type
+            elif self._read_state == self.ReadState.READ_TYPE:
+                # Next State
+                if cur_c == self.DATA_MSG_TYPE:
+                    self._read_state = self.ReadState.READ_IDX
+                elif cur_c == self.STRING_MSG_TYPE:
+                    self._read_state = self.ReadState.READ_STRING
+                    self._string_buffer = "" # Reset buffer
+                    self._data_buff_i = 0
+                else:
+                    self.logger.warning("Unknown MsgType: %02X", cur_c)
+                    self._read_state = self.ReadState.READ_START
+
 
             # Read the message index number (one byte)
             elif self._read_state == self.ReadState.READ_IDX:
@@ -200,13 +231,63 @@ class SerialReader(object):
                         self._bad_chksm_count += 1
                         self.logger.warning("Invalid chksm. (total invalid chksms: %d)", self._bad_chksm_count)
 
+                        self.logger.debug("RX: %s", bytearr_to_hexstr(self._data_buff[:self._data_len_exp]))
+
                     self._read_state = self.ReadState.READ_START
+
+            # Read string (endline terminated)
+            elif self._read_state == self.ReadState.READ_STRING:
+                if chr(cur_c) != '\n':
+                    self._string_buffer += chr(cur_c)
+                    self._data_buff[self._data_buff_i] = cur_c
+                    self._data_buff_i += 1
+                else:
+                    self.logger.warning("RX: %s", self._string_buffer)
+                    self._read_state = self.ReadState.READ_START
+
 
         # Remove all the processed bytes
         self._ser_buffer = self._ser_buffer[i:]
 
+    def write_data(self, data):
+        """ TODO """
+        self.ser.write(self.START_BYTES)
+        self.ser.write(bytearray([
+            self.DATA_MSG_TYPE,
+            self.tx_msg_idx,
+            len(data)
+        ]))
+        self.tx_msg_idx += 1
+        self.ser.write(bytearray(data))
+        chksm = self.calc_checksum(data)
+        # self.logger.debug("  chksm: %02X", chksm)
+        self.ser.write(struct.pack('H', chksm))
+
+    def write_string(self, s):
+        """ TODO """
+        self.ser.write(self.START_BYTES)
+        self.ser.write(bytearray([self.STRING_MSG_TYPE]))
+        self.ser.print(s)
+        if s[-1] != '\n':
+            self.ser.print('\n')
+
+
+
     def verify_checksum(self, data, chksm):
         """ Verify the Fletcher16 checksum """
+
+        calc_chksm = self.calc_checksum(data)
+        rcvd_chksm = (chksm[1] << 8) | chksm[0]  # Convert bytearray to uint16_t
+
+        res = (calc_chksm == rcvd_chksm)
+
+        if not res:
+            self.logger.warning("Invalid chksm. Rcvd: %04X, Calc: %04X", rcvd_chksm, calc_chksm)
+
+        return res
+
+    def calc_checksum(self, data):
+        """ Calculate the Fletcher16 checksum """
         sum1 = 0
         sum2 = 0
 
@@ -214,15 +295,7 @@ class SerialReader(object):
             sum1 = (sum1 + data[index]) % 255
             sum2 = (sum2 + sum1) % 255
 
-        calc_chksm = (sum2 << 8) | sum1     # Calculated chksm
-        chksm = (chksm[1] << 8) | chksm[0]  # Received chksm
-
-        res = (calc_chksm == chksm)
-
-        if not res:
-            self.logger.warning("Invalid chksm. Rcvd: %X, Calc: %X", chksm, calc_chksm)
-
-        return calc_chksm == chksm
+        return (sum2 << 8) | sum1
 
 
 ##############################################
@@ -256,7 +329,7 @@ def open_serial_port(serial_num=None, port_path=None):
             return None
         else:
             print(f"uC connected on port_path='{port_path}'")
-            ser = serial.Serial(port_path, 1, timeout=0)
+            ser = serial.Serial(port_path, 1, timeout=0, write_timeout=0)
             sleep(0.5)
             ser.flush()
             sleep(0.5)
@@ -264,7 +337,7 @@ def open_serial_port(serial_num=None, port_path=None):
 
     elif port_path is not None:
         print(f"uC connected on port_path='{port_path}'")
-        ser = serial.Serial(port_path, 1, timeout=0)
+        ser = serial.Serial(port_path, 1, timeout=0, write_timeout=0)
         sleep(0.5)
         ser.flush()
         sleep(0.5)
@@ -278,7 +351,7 @@ def open_serial_port(serial_num=None, port_path=None):
             if (port.pid == TEENSY_PID) and (port.vid == TEENSY_VID):
                 port_path = port.device
                 print(f"uC connected on port_path='{port_path}'")
-                ser = serial.Serial(port_path, 1, timeout=0)
+                ser = serial.Serial(port_path, 1, timeout=0, write_timeout=0)
                 sleep(0.5)
                 ser.flush()
                 sleep(0.5)
@@ -344,8 +417,28 @@ def main():
     # Initialize SerialReader object (for threaded serial read process)
     reader = SerialReader(ser, verbose=True, logger=logger)
 
+    ###########################################################
+    # # Non-threaded run
+    # try:
+    #     reader.read()
+    # except KeyboardInterrupt:
+    #     logger.warning("User exited w/ Ctrl+C.")
+    ###########################################################
+
     # Start a thread to read serial data
     reader.read_threaded()
+
+
+    print_last_t = time()
+
+    test_tx_data = [0xF0, 0x02, 0x03, 0x04, 0x05]
+
+    mock_can_data_tx = [
+        0x00, 0x04, 0x0F, 0x0C, # ID, LSB
+        0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
+        # 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 # data
+    ]
+
 
     # Mock: Simulate processing the data from the queue
     try:
@@ -354,8 +447,30 @@ def main():
             # Deal with empty queue
             if data_msg is None:
                 sleep(0.001)
-                continue
-            logger.info("RX: %s", bytearr_to_hexstr(data_msg))
+
+                # continue
+            else:
+                logger.info("RX: %s", bytearr_to_hexstr(data_msg))
+
+
+            # if time() - print_last_t > 1.0:
+            #     print_last_t = time()
+            #     # Write Data
+            #     reader.logger.debug("TX: %s", bytearr_to_hexstr(test_tx_data))
+            #     reader.write_data(test_tx_data)
+            #     test_tx_data[0] = (test_tx_data[0] + 1) % 256
+            #     # # Write String
+            #     # tx_str = "Hello World2!"
+            #     # reader.logger.debug("TX: %s", tx_str)
+            #     # reader.write_string(tx_str)
+
+
+            # Write mock CAN data
+            if time() - print_last_t > 1.0:
+                print_last_t = time()
+                reader.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
+                reader.write_data(mock_can_data_tx)
+
 
     except KeyboardInterrupt:
         logger.warning("User exited w/ Ctrl+C.")
