@@ -14,7 +14,29 @@
 #include <Arduino.h>  // Core library
 
 #include <FlexCAN.h>
-#include <can_utils.h>
+
+
+// Simple Union to allow easy read/write of CAN msg struct
+union CanMsg {
+    // The CAN Message struct
+    struct Fields {
+        uint16_t ind;       // Track msg number (recevied by uC)
+        uint8_t bus_id;     // Which bus is this on
+        uint8_t  : 8;       // Byte padding, for 32-bit words
+        uint32_t tstamp;    // microseconds since launch
+        CAN_message_t msg;  // CAN_message_t struct for reference
+                            // typedef struct CAN_message_t {
+                            //   uint32_t id; // can identifier
+                            //   uint8_t ext; // identifier is extended
+                            //   uint8_t len; // length of data
+                            //   uint16_t timeout; // milliseconds, zero will disable waiting
+                            //   uint8_t buf[8];
+                            // } CAN_message_t;
+    } fields;
+    // Raw Data
+    uint8_t raw[];
+};
+
 
 class CanDriver {
 
@@ -31,18 +53,11 @@ class CanDriver {
     ///      Variables      ///
     ///////////////////////////
 
-    FlexCAN can_;
-
-    uint8_t msg_idx_;
-
-    CanMsg rx_msg_;
-    CanMsg tx_msg_;
-
-    uint16_t chksm_;
-
-    uint8_t bus_id_;
-
-    uint32_t last_can_msg_t;
+    FlexCAN can_;  // The underlying CAN interface object
+    uint8_t msg_idx_;  // Keep track of the message index as received
+    CanMsg rx_msg_;  // Received msg from CAN bus
+    uint8_t bus_id_;  // Which CAN bus is this tied to
+    uint32_t last_can_msg_t;  // Useful for checking timeouts
 
     ///////////////////////////
     ///      Constants      ///
@@ -51,3 +66,9 @@ class CanDriver {
  private:
 
 };
+
+////////////////////////////
+// Other useful functions //
+void PrintStructHex(const CanMsg& can_msg);
+void PrintCanData(const CanMsg& can_msg);
+uint32_t IdToPgn(uint32_t id);

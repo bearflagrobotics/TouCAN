@@ -30,62 +30,33 @@ import serial
 import serial.tools.list_ports
 from SerialReader import SerialReader
 
-# Define namedtuple for bit mapping field (for readability)
-Field = namedtuple('Field', 'name width')
-
-CAN_MSG_BIT_MAPPING = (
-    Field('index',               16),
-    Field('bus_id',               8),
-    Field(' ',                    8),  # Bit padding, for 32-bit words
-    Field('tstamp',              32),  # micros since start
-    Field('id',                  32),
-    Field('ext',                  8),
-    Field('len',                  8),
-    Field('timeout',             16),
-    Field('data',                64),
-)
-# Status msg length (in bytes)
-CAN_MSG_LEN = sum(fld.width for fld in CAN_MSG_BIT_MAPPING) // 8
-
-# Construct the string format for unpacking the can msg (using the struct library)
-#   See details here: https://docs.python.org/2/library/struct.html
-#   Ex: "<BBHHIB" => 2 uint8, 2 uint16, 1 uint32, 1 uint8
-CAN_MSG_FMT = '<' # Start with Little Endian
-
-# Construct accompanying array, mapping the byte separations (borders) in bit positions
-#   Ex: "<BBHHIB" => [0, 8, 16, 32, 48, 80]
-CAN_MSG_FMT_BITS = [0] # Keep track of what bit corresponds to byte packing
-
-bit_count = 0 # temporary variable, to count the bit count, determine where to split bytes
-# Loop through mapping, in order
-for fld in CAN_MSG_BIT_MAPPING:
-    # Accumulate bits until reach a byte size
-    bit_count += fld.width
-    # When the byte size matches
-    if bit_count % 8 == 0:
-        # Generate bit count fmt
-        CAN_MSG_FMT_BITS += [CAN_MSG_FMT_BITS[-1] + bit_count]
-        # Determine what data type to use (uint8, uint16, uint32)
-        size_bytes = bit_count // 8 # Integer division (though not technically neccessary)
-        bit_count = 0
-        if size_bytes == 1:
-            CAN_MSG_FMT += 'B' # uint8_t
-        elif size_bytes == 2:
-            CAN_MSG_FMT += 'H' # uint16_t
-        elif size_bytes == 4:
-            CAN_MSG_FMT += 'I' # uint32_t
-        elif size_bytes == 8:
-            CAN_MSG_FMT += 'Q' # uint64_t
-        else:
-            raise ValueError("Invalid size of bytes, must be 1, 2, 4, or 8 bytes")
-
-
+from utils import open_serial_port_blocking, bytearr_to_hexstr
 
 class CANReader(object):
+    """ TODO """
+
+    Field = namedtuple('Field', 'name width') # namedtuple for bit mapping field (for readability)
+
+    # Define the CAN msg bit mapping
+    #   This must be in sync with the TouCAN formatting
+    #   This is later parsed to get relevant parsing attributes (msg length, unpacking string, etc)
+    CAN_MSG_BIT_MAPPING = (
+        Field('index',               16),
+        Field('bus_id',               8),
+        Field(' ',                    8),  # Bit padding, for 32-bit words
+        Field('tstamp',              32),  # micros since start
+        Field('id',                  32),
+        Field('ext',                  8),
+        Field('len',                  8),
+        Field('timeout',             16),
+        Field('data',                64),
+    )
 
 
     def __init__(self, port_path=None, logger=None, datalogname=None):
 
+        ##############################
+        ### Handle Input Arguments ###
         # Logging
         if logger is None:
             logging.basicConfig(level=logging.DEBUG)
@@ -112,28 +83,78 @@ class CANReader(object):
                 "   0.000000 Start of measurement"
             self.data_log.info(header_str)
 
-
         # Open the Serial port
         ser = open_serial_port_blocking(port_path=port_path)
         # Initialize the SerialReader (handles the serial bytes and checksums and stuff)
         self.reader = SerialReader(ser, verbose=True, logger=logger)
 
-
-        # Create the formatting of the CAN msg format
-        self.canmsg = create_status_dict_from_mapping(CAN_MSG_BIT_MAPPING)
-        self.canmsg['index'] = 0
-        self.last_rcv_ind = self.canmsg['index']
-
-        self.start_msg_t = None
-
-        self.logger.info("CANReader: Initialized.")
+        ### Setup CAN
+        ## Create the formatting of the CAN msg format
+        #   CAN_MSG_LEN: The len (bytes) of the CAN msg
+        #   CAN_MSG_FMT: struct.pack string formatter
+        #                eg: "<BBHHIB" => LittleEndian, 2 uint8, 2 uint16, 1 uint32, 1 uint8
+        #   rxmsg: dictionary for storing the received canmsg
+        #           will dynamically update
+        self.CAN_MSG_LEN, self.CAN_MSG_FMT, self.rx_msg = \
+            CANReader.parse_can_msg_bit_mapping(self.CAN_MSG_BIT_MAPPING)
+        self.rx_msg['index'] = 0
+        self.rx_last_ind = self.rx_msg['index']
+        self.rx_first_msg_t = None # Time of the first received msg (for better log timing)
 
         # Some diagnostics
         self.msg_count = 0
         self.status_print_t = time()
         self.STATUS_PRINT_PERIOD = 5.0 # seconds
-
         self.buses_seen = set() # Log bus activity
+
+        self.logger.info("CANReader: Initialized.")
+
+
+    @staticmethod
+    def parse_can_msg_bit_mapping(mapping):
+        """ Do some parsing magic, to allow simple msg defintion, then extract useful formatting data """
+        # Status msg length (in bytes)
+        can_msg_len = sum(fld.width for fld in mapping) // 8
+
+        # Construct the string format for unpacking the can msg (using the struct library)
+        #   See details here: https://docs.python.org/2/library/struct.html
+        #   Eg: "<BBHHIB" => 2 uint8, 2 uint16, 1 uint32, 1 uint8
+        can_msg_fmt = '<' # Start with Little Endian
+
+        # Construct accompanying array, mapping the byte separations (borders) in bit positions
+        #   Eg: "<BBHHIB" => [0, 8, 16, 32, 48, 80]
+        _can_msg_fmt_bits = [0] # Keep track of what bit corresponds to byte packing
+
+        _bit_count = 0 # temporary variable, to count the bit count, determine where to split bytes
+        # Loop through mapping, in order
+        for fld in mapping:
+            # Accumulate bits until reach a byte size
+            _bit_count += fld.width
+            # When the byte size matches
+            if _bit_count % 8 == 0:
+                # Generate bit count fmt
+                _can_msg_fmt_bits += [_can_msg_fmt_bits[-1] + _bit_count]
+                # Determine what data type to use (uint8, uint16, uint32)
+                _size_bytes = _bit_count // 8 # Integer division (though not technically neccessary)
+                _bit_count = 0
+                if _size_bytes == 1:
+                    can_msg_fmt += 'B' # uint8_t
+                elif _size_bytes == 2:
+                    can_msg_fmt += 'H' # uint16_t
+                elif _size_bytes == 4:
+                    can_msg_fmt += 'I' # uint32_t
+                elif _size_bytes == 8:
+                    can_msg_fmt += 'Q' # uint64_t
+                else:
+                    raise ValueError("Invalid size of bytes, must be 1, 2, 4, or 8 bytes")
+
+        ## Convert bit mapping to dict, for variable names
+        can_msg_dict = OrderedDict()
+        for fld in mapping:
+            can_msg_dict[fld.name] = None
+
+        return can_msg_len, can_msg_fmt, can_msg_dict
+
 
     def run(self):
         """ TODO """
@@ -150,20 +171,20 @@ class CANReader(object):
 
                 ## Process data into CAN msg
                 # Unpack the data
-                data_unpacked = struct.unpack(CAN_MSG_FMT, data_msg)
+                data_unpacked = struct.unpack(self.CAN_MSG_FMT, data_msg)
 
                 # Parse the data into the dictionary
-                for j, field in enumerate(CAN_MSG_BIT_MAPPING):
-                    self.canmsg[field.name] = data_unpacked[j]
+                for j, field in enumerate(self.CAN_MSG_BIT_MAPPING):
+                    self.rx_msg[field.name] = data_unpacked[j]
 
                 # Log first time
-                if self.start_msg_t is None:
-                    self.start_msg_t = self.canmsg['tstamp']/1E6
+                if self.rx_first_msg_t is None:
+                    self.rx_first_msg_t = self.rx_msg['tstamp']/1E6
 
                 # Log first data on buses
-                if self.canmsg['bus_id'] not in self.buses_seen:
-                    self.buses_seen.add(self.canmsg['bus_id'])
-                    self.logger.info("  Received first msg on bus %d", self.canmsg['bus_id'])
+                if self.rx_msg['bus_id'] not in self.buses_seen:
+                    self.buses_seen.add(self.rx_msg['bus_id'])
+                    self.logger.info("  Received first msg on bus %d", self.rx_msg['bus_id'])
 
                 # Count messages
                 self.msg_count += 1
@@ -185,122 +206,45 @@ class CANReader(object):
 
     def print_can_msg_data(self, verbose=False):
         """ Print CAN msg data to logger (terminal/file) """
-        byte_data = struct.pack('<Q', self.canmsg['data'])
+        byte_data = struct.pack('<Q', self.rx_msg['data'])
         if verbose:
-            self.logger.debug("Index: %d", self.canmsg['index'])
-            self.logger.debug("  time: %f", self.canmsg['tstamp'])
-            self.logger.debug("  bus_id: %d", self.canmsg['bus_id'])
-            self.logger.debug("  id: 0x%08X", self.canmsg['id'])
-            self.logger.debug("  ext: %d", self.canmsg['ext'])
-            self.logger.debug("  len: %d", self.canmsg['len'])
-            self.logger.debug("  timeout: %d", self.canmsg['timeout'])
+            self.logger.debug("Index: %d", self.rx_msg['index'])
+            self.logger.debug("  time: %f", self.rx_msg['tstamp'])
+            self.logger.debug("  bus_id: %d", self.rx_msg['bus_id'])
+            self.logger.debug("  id: 0x%08X", self.rx_msg['id'])
+            self.logger.debug("  ext: %d", self.rx_msg['ext'])
+            self.logger.debug("  len: %d", self.rx_msg['len'])
+            self.logger.debug("  timeout: %d", self.rx_msg['timeout'])
             self.logger.debug("  data: %s", bytearr_to_hexstr(byte_data))
         else:
             self.logger.debug("(%010.6f) can%d %08X#%s",
-                self.canmsg['tstamp']/1E6,
-                self.canmsg['bus_id'],
-                self.canmsg['id'],
+                self.rx_msg['tstamp']/1E6,
+                self.rx_msg['bus_id'],
+                self.rx_msg['id'],
                 bytearr_to_hexstr(byte_data, delimiter='')
             )
 
     def log_can_data(self, canparse_fmt=True):
         """ Log data to log file """
         if self.data_log is not None:
-            byte_data = struct.pack('<Q', self.canmsg['data'])
+            byte_data = struct.pack('<Q', self.rx_msg['data'])
             if canparse_fmt:
                 self.data_log.info("%s %d %08Xx  Rx d %d %s",
-                    f"{(self.canmsg['tstamp']/1E6-self.start_msg_t):.6f}".rjust(11, ' '),
-                    self.canmsg['bus_id']+1,
-                    self.canmsg['id'],
-                    self.canmsg['len'],
+                    f"{(self.rx_msg['tstamp']/1E6-self.rx_first_msg_t):.6f}".rjust(11, ' '),
+                    self.rx_msg['bus_id']+1,
+                    self.rx_msg['id'],
+                    self.rx_msg['len'],
                     bytearr_to_hexstr(byte_data, delimiter=' '),
                 )
             else:
                 self.data_log.info("(%010.3f) can%d %08X#%s",
-                    self.canmsg['tstamp']/1E6,
-                    self.canmsg['bus_id'],
-                    self.canmsg['id'],
+                    self.rx_msg['tstamp']/1E6,
+                    self.rx_msg['bus_id'],
+                    self.rx_msg['id'],
                     bytearr_to_hexstr(byte_data, delimiter=''),
                 )
 
-##############################################
-############ External Functions ##############
-##############################################
 
-def create_status_dict_from_mapping(mapping):
-    """ Convert bit mapping to dict, for variable names """
-    status = OrderedDict()
-    for field in mapping:
-        status[field.name] = None
-    return status
-
-def open_serial_port_blocking(serial_num=None, port_path=None):
-    """ Try open serial port, and wait until successful """
-    last_waiting_t = time()
-    while True:
-        ser = open_serial_port(serial_num=serial_num, port_path=port_path)
-        if ser is not None:
-            break
-        sleep(0.1)
-        if time() - last_waiting_t > 5.0:
-            last_waiting_t = time()
-            print("No Serial port found. Waiting...")
-    return ser
-
-def open_serial_port(serial_num=None, port_path=None):
-    """ Simple wrapper function for handling opening serial port. Returns the opened serial port"""
-
-    if serial_num is not None:
-        print(f"Trying to connect to uC with serial#='{serial_num}'")
-        # Get port number and verify opened. If unable to open, print error and quit node.
-        port_path = get_port_number(serial_num) # returns None if not found.
-        if port_path is None:
-            # print("uC not found with serial#='{}'".format(serial_num))
-            # print("Shutting down.")
-            return None
-        else:
-            print(f"uC connected on port_path='{port_path}'")
-            ser = serial.Serial(port_path, 1, timeout=0)
-            sleep(0.5)
-            ser.flush()
-            sleep(0.5)
-            return ser
-
-    elif port_path is not None:
-        print(f"uC connected on port_path='{port_path}'")
-        ser = serial.Serial(port_path, 1, timeout=0)
-        sleep(0.5)
-        ser.flush()
-        sleep(0.5)
-        return ser
-
-    else: # Look for Teensy PID/VID
-        TEENSY_PID = 0x0483
-        TEENSY_VID = 0x16C0
-        ports = list(serial.tools.list_ports.comports())
-        for port in ports:
-            if (port.pid == TEENSY_PID) and (port.vid == TEENSY_VID):
-                port_path = port.device
-                print(f"uC connected on port_path='{port_path}'")
-                ser = serial.Serial(port_path, 1, timeout=0)
-                sleep(0.5)
-                ser.flush()
-                sleep(0.5)
-                return ser
-        # print("No Teensy found...")
-        # print("Shutting down.")
-        return None
-
-def get_port_number(serial_number):
-    """ return port number for serial_number or None if not found. """
-    ports = list(serial.tools.list_ports.grep(serial_number))
-    if len(ports) > 0:
-        return ports[0].device
-    return None
-
-def bytearr_to_hexstr(arr, delimiter=' '):
-    """ Convert a byte array to a hex string """
-    return f'{delimiter}'.join(format(x, '02X') for x in arr)
 
 # ==================================================================================================
 

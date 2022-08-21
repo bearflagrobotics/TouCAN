@@ -79,6 +79,8 @@ bool SerialDriver::Read() {
                 // Next State
                 if (msg_type == kDataMsgType) {
                     read_state = READ_IDX;
+                } else if (msg_type == kCanMsgType) {
+                    read_state = READ_IDX;
                 } else if (msg_type == kStringMsgType) {
                     read_state = READ_STRING;
                     string_buffer_i = 0;
@@ -198,3 +200,5 @@ bool SerialDriver::PrintStringHeader() {
     }
     return false;
 }
+
+

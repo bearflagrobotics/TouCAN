@@ -19,6 +19,7 @@ import threading
 import struct
 import serial
 import serial.tools.list_ports
+from utils import bytearr_to_hexstr
 
 ##########################################################################
 ###                     CAN Reader Interface Class                     ###
@@ -43,6 +44,7 @@ class SerialReader(object):
 
     DATA_MSG_TYPE = 0x01
     STRING_MSG_TYPE = 0x02
+    CAN_MSG_TYPE = 0x03
 
     class ReadState(IntEnum):
         """ Map Read states to corresponding ints """
@@ -74,6 +76,8 @@ class SerialReader(object):
         self._read_state = self.ReadState.READ_START
 
         self._start_bytes_i = 0 # Index the start sequence
+
+        self._rx_msg_type = 0 # What msg type was received
 
         self._msg_index = None # Store the message number index
         self._data_len_exp = 0 # Store the expected data length
@@ -170,15 +174,16 @@ class SerialReader(object):
 
             # Read the message type
             elif self._read_state == self.ReadState.READ_TYPE:
+                self._rx_msg_type = cur_c
                 # Next State
-                if cur_c == self.DATA_MSG_TYPE:
+                if self._rx_msg_type == self.DATA_MSG_TYPE:
                     self._read_state = self.ReadState.READ_IDX
-                elif cur_c == self.STRING_MSG_TYPE:
+                elif self._rx_msg_type == self.STRING_MSG_TYPE:
                     self._read_state = self.ReadState.READ_STRING
                     self._string_buffer = "" # Reset buffer
                     self._data_buff_i = 0
                 else:
-                    self.logger.warning("Unknown MsgType: %02X", cur_c)
+                    self.logger.warning("Unknown MsgType: %02X", self._rx_msg_type)
                     self._read_state = self.ReadState.READ_START
 
 
@@ -249,27 +254,48 @@ class SerialReader(object):
         # Remove all the processed bytes
         self._ser_buffer = self._ser_buffer[i:]
 
+    def print_raw_rx_data(self):
+        """ Print the raw RX data msg"""
+        self.logger.debug("RX: (%s) %s (%s)",
+            bytearr_to_hexstr(self.START_BYTES + [self._rx_msg_type, self._msg_index, self._data_len_exp]),
+            bytearr_to_hexstr(self._data_buff[:self._data_len_exp]),
+            bytearr_to_hexstr(self._chksm))
+
     def write_data(self, data):
         """ TODO """
-        self.ser.write(self.START_BYTES)
-        self.ser.write(bytearray([
-            self.DATA_MSG_TYPE,
-            self.tx_msg_idx,
-            len(data)
-        ]))
-        self.tx_msg_idx += 1
-        self.ser.write(bytearray(data))
-        chksm = self.calc_checksum(data)
-        # self.logger.debug("  chksm: %02X", chksm)
-        self.ser.write(struct.pack('H', chksm))
+        self.write_to_serial(self.DATA_MSG_TYPE, data)
 
     def write_string(self, s):
         """ TODO """
+        self.write_to_serial(self.STRING_MSG_TYPE, s)
+
+    def write_can_msg(self, data):
+        """ TODO """
+        self.write_to_serial(self.CAN_MSG_TYPE, data)
+
+    def write_to_serial(self, msg_type, data):
+        """ TODO """
+
         self.ser.write(self.START_BYTES)
-        self.ser.write(bytearray([self.STRING_MSG_TYPE]))
-        self.ser.print(s)
-        if s[-1] != '\n':
-            self.ser.print('\n')
+        self.ser.write(bytearray([msg_type]))
+
+        # Data, CAN
+        if msg_type in [self.DATA_MSG_TYPE, self.CAN_MSG_TYPE]:
+            self.ser.write(bytearray([
+                self.tx_msg_idx,
+                len(data)
+            ]))
+            self.tx_msg_idx = (self.tx_msg_idx + 1) % 256
+            self.ser.write(bytearray(data))
+            chksm = self.calc_checksum(data)
+            # self.logger.debug("  chksm: %02X", chksm)
+            self.ser.write(struct.pack('H', chksm))
+
+        # String
+        elif msg_type == self.STRING_MSG_TYPE:
+            self.ser.print(data)
+            if data[-1] != '\n':
+                self.ser.print('\n')
 
 
 
@@ -298,81 +324,6 @@ class SerialReader(object):
         return (sum2 << 8) | sum1
 
 
-##############################################
-############ External Functions ##############
-##############################################
-
-def open_serial_port_blocking(serial_num=None, port_path=None):
-    """ Try open serial port, and wait until successful """
-    last_waiting_t = time()
-    while True:
-        ser = open_serial_port(serial_num=serial_num, port_path=port_path)
-        if ser is not None:
-            break
-        sleep(0.1)
-        if time() - last_waiting_t > 5.0:
-            last_waiting_t = time()
-            print("No Serial port found. Waiting...")
-    return ser
-
-
-def open_serial_port(serial_num=None, port_path=None):
-    """ Simple wrapper function for handling opening serial port. Returns the opened serial port"""
-
-    if serial_num is not None:
-        print(f"Trying to connect to uC with serial#='{serial_num}'")
-        # Get port number and verify opened. If unable to open, print error and quit node.
-        port_path = get_port_number(serial_num) # returns None if not found.
-        if port_path is None:
-            # print("uC not found with serial#='{}'".format(serial_num))
-            # print("Shutting down.")
-            return None
-        else:
-            print(f"uC connected on port_path='{port_path}'")
-            ser = serial.Serial(port_path, 1, timeout=0, write_timeout=0)
-            sleep(0.5)
-            ser.flush()
-            sleep(0.5)
-            return ser
-
-    elif port_path is not None:
-        print(f"uC connected on port_path='{port_path}'")
-        ser = serial.Serial(port_path, 1, timeout=0, write_timeout=0)
-        sleep(0.5)
-        ser.flush()
-        sleep(0.5)
-        return ser
-
-    else: # Look for Teensy PID/VID
-        TEENSY_PID = 0x0483
-        TEENSY_VID = 0x16C0
-        ports = list(serial.tools.list_ports.comports())
-        for port in ports:
-            if (port.pid == TEENSY_PID) and (port.vid == TEENSY_VID):
-                port_path = port.device
-                print(f"uC connected on port_path='{port_path}'")
-                ser = serial.Serial(port_path, 1, timeout=0, write_timeout=0)
-                sleep(0.5)
-                ser.flush()
-                sleep(0.5)
-                return ser
-        # print("No Teensy found...")
-        # print("Shutting down.")
-        return None
-
-
-def get_port_number(serial_number):
-    """ return port number for serial_number or None if not found. """
-    ports = list(serial.tools.list_ports.grep(serial_number))
-    if len(ports) > 0:
-        return ports[0].device
-    return None
-
-def bytearr_to_hexstr(arr, delimiter=' '):
-    """ Convert a byte array to a hex string """
-    return f'{delimiter}'.join(format(x, '02X') for x in arr)
-
-
 # ==================================================================================================
 
 def main():
@@ -381,7 +332,7 @@ def main():
     ###############################################################################################
     ## Parse CLI input
     import argparse
-    # Argparser
+    # Argparserv
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', '-p',
                         help="Path to the device (eg. /dev/ttyACM0 (Unix), or COM7 (Windows)",
@@ -412,6 +363,7 @@ def main():
 
 
     # Establish serial connection
+    from utils import open_serial_port_blocking
     ser = open_serial_port_blocking(port_path=port_path)
 
     # Initialize SerialReader object (for threaded serial read process)
@@ -428,20 +380,15 @@ def main():
     # Start a thread to read serial data
     reader.read_threaded()
 
-
-    print_last_t = time()
-
-    test_tx_data = [0xF0, 0x02, 0x03, 0x04, 0x05]
-
     mock_can_data_tx = [
         0x00, 0x04, 0x0F, 0x0C, # ID, LSB
         0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
         # 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 # data
     ]
 
-
     # Mock: Simulate processing the data from the queue
     try:
+        print_last_t = time()
         while True:
             data_msg = reader.get_data()
             # Deal with empty queue
@@ -469,7 +416,7 @@ def main():
             if time() - print_last_t > 1.0:
                 print_last_t = time()
                 reader.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
-                reader.write_data(mock_can_data_tx)
+                reader.write_can_msg(mock_can_data_tx)
 
 
     except KeyboardInterrupt:
