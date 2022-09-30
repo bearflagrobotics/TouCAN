@@ -56,10 +56,10 @@ void loop() {
 
     // Read from CAN buses
     if (can0.ReadCan()) {
-        serial.WriteData(can0.rx_msg_.raw, sizeof(can0.rx_msg_.fields));
+        serial.WriteData(can0.rx_msg_.raw, sizeof(can0.rx_msg_.fields), true);
     }
     if (can1.ReadCan()) {
-        serial.WriteData(can1.rx_msg_.raw, sizeof(can1.rx_msg_.fields));
+        serial.WriteData(can1.rx_msg_.raw, sizeof(can1.rx_msg_.fields), true);
     }
 
     // Read data from Serial

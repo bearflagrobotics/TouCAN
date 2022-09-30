@@ -58,7 +58,7 @@ void loop() {
 
     // Read data from Serial
     if (serial.Read()) {
-        // Echo back the bytes for verification
+        // // Echo back the bytes for verification
         // serial.WriteData(serial.data_buff, serial.data_len_exp);
 
         if (serial.IsUp()) {

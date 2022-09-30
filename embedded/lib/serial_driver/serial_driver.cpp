@@ -14,13 +14,17 @@
 #include <Arduino.h>
 
 
-bool SerialDriver::WriteData(const uint8_t* data, const uint8_t data_len) {
+bool SerialDriver::WriteData(const uint8_t* data, const uint8_t data_len, bool is_can) {
     if (IsUp()) {
         // Calculate the checksum
         uint16_t chksm_ = Fletcher16(data, data_len);
         // Write the CAN msg to Serial port
         Serial.write(kStartBytes, sizeof(kStartBytes));
-        Serial.write(kDataMsgType);
+        if (is_can) {
+            Serial.write(kCanMsgType);
+        } else {
+            Serial.write(kDataMsgType);
+        }
         Serial.write(msg_idx++);
         Serial.write(data_len);
         Serial.write(data, data_len);

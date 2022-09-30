@@ -1,12 +1,12 @@
 """
 Copyright 2022 Bear Flag Robotics
 
-    lead_serial_can_test.py
+    lead_can_interface_test.py
 
-        test CAN serial, this is the lead node
+        Test CAN Interface (via serial), this is the lead node
 
         Author: Austin Chun
-        Date:   Aug 2022
+        Date:   Sep 2022
 
 """
 
@@ -16,9 +16,9 @@ import logging
 import argparse
 
 from utils import open_serial_port_blocking
+from can_utils import CanMsg
 
-from SerialInterface import *
-
+from CanInterface import CanInterface
 
 # ==================================================================================================
 
@@ -48,7 +48,7 @@ def main():
         from CustomLogger import CustomLogger
         # Init Logger
         logger = CustomLogger(
-            "SerialInterface.py",
+            "CanInterface.py",
             level=logger_lvl,
             verbose=verbose,
             color=color
@@ -58,41 +58,41 @@ def main():
         logger = logging.getLogger()
     ###############################################################################################
 
+    # # Optional logging of raw can data to
+    # datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    # datalogname = datetime_str + ".asc"
 
     # Establish serial connection
     ser = open_serial_port_blocking(port_path=port_path)
 
     # Initialize SerialInterface object (for threaded serial read process)
-    ser_int = SerialInterface(ser, logger=logger)
+    can_int = CanInterface(ser, logger=logger, datalogname=None)
 
-    # Start a thread to read serial data
-    ser_int.read_threaded()
+    msg_0123 = CanMsg(0x1A0123FF, [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77], bus=0)
+    msg_9876 = CanMsg(0x1B9876FF, [0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22], bus=1)
 
-
-    mock_can_data_tx = [
-        0x00, # Bus ID
-        0x00, 0x04, 0x0F, 0x0C, # ID, LSB first
-        0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
-        # 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 # data
-    ]
-
-    # Mock: Simulate processing the data from the queue
     try:
-        print_last_t = time()
+        print_t1 = time()
+        print_t2 = time()
         while True:
-            ## Read from SerialInterface, and print
-            data_msg = ser_int.get_data()
-            if data_msg is None: # Deal with empty queue
+            ## Read from CanInterface, and print
+            rx_msg = can_int.get_rx_msg()
+            if rx_msg is None: # Deal with empty queue
                 sleep(0.001)
             else:
-                logger.info("RX: (%02X %02X) %s", data_msg.type, data_msg.index,
-                            bytearr_to_hexstr(data_msg.data))
+                # logger.info("RX: %s", rx_msg.info_string)
+                can_int.print_can_msg_data(rx_msg, verbose=False)
 
-            # Write mock CAN data
-            if time() - print_last_t > 1.0:
-                print_last_t = time()
-                ser_int.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
-                ser_int.write_can_msg(mock_can_data_tx)
+            # Write Data periodically
+            if time() - print_t1 > 1.0:
+                print_t1 = time()
+                can_int.write_can_msg(msg_0123)
+                logger.debug("Transmit: %s", msg_0123.log_str)
+            if time() - print_t2 > 2.0:
+                print_t2 = time()
+                can_int.write_can_msg(msg_9876)
+                logger.debug("Transmit: %s", msg_9876.log_str)
+
 
     except KeyboardInterrupt:
         logger.warning("User exited w/ Ctrl+C.")

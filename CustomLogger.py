@@ -84,7 +84,7 @@ class ColoredFormatter(logging.Formatter):
 class CustomLogger(logging.Logger):
     """ TODO """
 
-    def __init__(self, name, level=logging.DEBUG, filename=None, verbose=False, color=False):
+    def __init__(self, name, level=logging.DEBUG, filename=None, verbose=True, color=False):
         logging.Logger.__init__(self, name, level)
         self.setLevel(level)
 
@@ -104,7 +104,7 @@ class CustomLogger(logging.Logger):
 if __name__ == "__main__":
 
     # Example usage
-    logger = CustomLogger("TestTest.py", level=logging.DEBUG, verbose=True)
+    logger = CustomLogger("TestTest.py", level=logging.DEBUG, verbose=False)
     logger.debug('debug message')
     logger.info('info message')
     logger.warning('warn message')

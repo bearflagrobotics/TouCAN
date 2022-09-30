@@ -1,26 +1,34 @@
 """
 Copyright 2022 Bear Flag Robotics
 
-    lead_serial_can_test.py
+    read_can_only.py
 
-        test CAN serial, this is the lead node
+        Script to read the CAN data (no writing), and log to file.
 
-        Author: Austin Chun
-        Date:   Aug 2022
+        Specify the uC port, and the format to log (CAN Parse .asc, or normal .log).
 
+        Specify verbose/color/debug level for terminal prints
+
+        eg. `py read_can_only.py -p /dev/ttyACM0 -f -c -d`
+            Uses uC on port ttyACM0
+            Uses CAN format, saves to `<timestamp>.asc`
+            Colors output of text to terminal
+            Logging level set to Debug (includes echo of all CAN data to terminal as well as data log)
+
+    Author: Austin Chun
+    Date:   Oct 2022
 """
 
 # pylint: disable=C0103
 from time import time, sleep
 import logging
 import argparse
+from datetime import datetime
 
 from utils import open_serial_port_blocking
 
-from SerialInterface import *
+from CanInterface import CanInterface
 
-
-# ==================================================================================================
 
 def main():
     """ TODO """
@@ -32,69 +40,63 @@ def main():
     parser.add_argument('--path', '-p',
                         help="Path to the device (eg. /dev/ttyACM0 (Unix), or COM7 (Windows)",
                         type=str, default=None)
+    parser.add_argument('--fmt_canparse', '-f', action=argparse.BooleanOptionalAction,
+                        help="Log as CAN Parse format (.asc)")
     parser.add_argument('--verbose', '-v', action=argparse.BooleanOptionalAction)
     parser.add_argument('--color', '-c', action=argparse.BooleanOptionalAction)
     parser.add_argument('--debug', '-d', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     # Condition Args
     port_path = args.path
+    canparse_fmt = args.fmt_canparse
     verbose = args.verbose
     color = args.color
     logger_lvl = logging.DEBUG if args.debug else logging.INFO
-    ###############################################################################################
 
+    ###############################################################################################
     ## Setup the logger
     try:
         from CustomLogger import CustomLogger
         # Init Logger
         logger = CustomLogger(
-            "SerialInterface.py",
+            "read_can_only.py",
             level=logger_lvl,
-            verbose=verbose,
             color=color
         )
     except ModuleNotFoundError as e:
         print(f"  Failed to load CustomLogger: {e}")
         logger = logging.getLogger()
+
     ###############################################################################################
 
+    # Optional logging of raw can data to
+    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if canparse_fmt:
+        datalogname = datetime_str + ".asc"
+    else:
+        datalogname = datetime_str + ".log"
 
     # Establish serial connection
     ser = open_serial_port_blocking(port_path=port_path)
 
     # Initialize SerialInterface object (for threaded serial read process)
-    ser_int = SerialInterface(ser, logger=logger)
+    can_int = CanInterface(ser, logger=logger, datalogname=datalogname)
 
-    # Start a thread to read serial data
-    ser_int.read_threaded()
-
-
-    mock_can_data_tx = [
-        0x00, # Bus ID
-        0x00, 0x04, 0x0F, 0x0C, # ID, LSB first
-        0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
-        # 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 # data
-    ]
-
-    # Mock: Simulate processing the data from the queue
     try:
-        print_last_t = time()
         while True:
-            ## Read from SerialInterface, and print
-            data_msg = ser_int.get_data()
-            if data_msg is None: # Deal with empty queue
+            ## Read from CanInterface, and print
+            rx_msg = can_int.get_rx_msg()
+            if rx_msg is None: # Deal with empty queue
                 sleep(0.001)
             else:
-                logger.info("RX: (%02X %02X) %s", data_msg.type, data_msg.index,
-                            bytearr_to_hexstr(data_msg.data))
+                can_int.print_can_msg_data(rx_msg, verbose=verbose)
+                can_int.log_can_data(rx_msg, canparse_fmt=canparse_fmt)
 
-            # Write mock CAN data
-            if time() - print_last_t > 1.0:
-                print_last_t = time()
-                ser_int.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
-                ser_int.write_can_msg(mock_can_data_tx)
 
     except KeyboardInterrupt:
+        if canparse_fmt:
+            can_int.data_log.info("End TriggerBlock")
+
         logger.warning("User exited w/ Ctrl+C.")
 
 # ==================================================================================================

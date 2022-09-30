@@ -61,7 +61,7 @@ class SerialDriver : public usb_serial_class {
     ///      Functions      ///
     ///////////////////////////
 
-    bool WriteData(const uint8_t* data, const uint8_t data_len);
+    bool WriteData(const uint8_t* data, const uint8_t data_len, bool is_can = false);
 
     bool IsUp();
 

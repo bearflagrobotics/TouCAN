@@ -3,6 +3,33 @@
 ## Hello, I am a TouCAN.
 Why you ask? Because I have two CAN buses!!! Mwahahah
 
+## Directory Structure
+This repo includes the embedded code (runs on TouCAN Teensy), as well as Python files (runs on
+Laptop).
+
+### Embedded
+This is a standard PlatformIO directory structure. The libraries are in `lib/`, with the
+implementation scripts in `src/`. The "targets" are defined in `platformio.ini`.
+
+The primary script here is `src/can_relay.cpp`, though there are others scripts in `src/tests/` that illustrated components of the libraries.
+
+### Python Scripts
+There are a handful of scripts, and a handful of libraries/modules.
+
+The main modules are
+
+1) **SerialInterface.py**: handle bytes, basic comm protocl to Teensy, and threaded reading
+2) **CanInterface.py**: parse the data from the Serial into CAN msgs/data
+
+The Can Interface uses the Serial Interface to communicate with the TouCAN. There are scripts that
+use these modules, for different use cases, commonly a "lead" and "follow"
+
+#### Serial Interface
+Interface
+
+#### Can Interface
+Interface
+
 ## TouCAN Usage
 
 - TouCAN connections:
@@ -71,6 +98,11 @@ Why you ask? Because I have two CAN buses!!! Mwahahah
             - `py follow_serial_can_test.py -p /dev/ttyACM1 -c -d -v`
         - Should see traffic on both sides now (TX and RX)
 
+- Two TouCANs, with CanInterface
+    - Flash both Teensy's with `CanRelayTest`
+    - Run two lead/follow of can_interface_test
+        - `py lead_can_interface_test.py -p /dev/ttyACM0 -v -c -d`
+        - `py follow_can_interface_test.py -p /dev/ttyACM1 -c -d -v`
 
 TODO:
 - (todo)

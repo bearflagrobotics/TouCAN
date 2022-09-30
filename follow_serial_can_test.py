@@ -17,7 +17,7 @@ import argparse
 
 from utils import open_serial_port_blocking
 
-from SerialReader import *
+from SerialInterface import *
 
 
 # ==================================================================================================
@@ -48,7 +48,7 @@ def main():
         from CustomLogger import CustomLogger
         # Init Logger
         logger = CustomLogger(
-            "SerialReader.py",
+            "SerialInterface.py",
             level=logger_lvl,
             verbose=verbose,
             color=color
@@ -56,21 +56,22 @@ def main():
     except ModuleNotFoundError as e:
         print(f"  Failed to load CustomLogger: {e}")
         logger = logging.getLogger()
+    ###############################################################################################
 
 
     # Establish serial connection
     ser = open_serial_port_blocking(port_path=port_path)
 
-    # Initialize SerialReader object (for threaded serial read process)
-    reader = SerialReader(ser, verbose=True, logger=logger)
+    # Initialize SerialInterface object (for threaded serial read process)
+    ser_int = SerialInterface(ser, logger=logger)
 
     # Start a thread to read serial data
-    reader.read_threaded()
+    ser_int.read_threaded()
 
 
     mock_can_data_tx = [
         0x01, # Bus ID
-        0x00, 0x03, 0x0F, 0x0C, # ID, LSB first
+        0x00, 0x03, 0xF0, 0x0C, # ID, LSB first
         # 0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
         0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99, 0x88 # data
     ]
@@ -79,18 +80,19 @@ def main():
     try:
         print_last_t = time()
         while True:
-            ## Read from SerialReader, and print
-            data_msg = reader.get_data()
+            ## Read from SerialInterface, and print
+            data_msg = ser_int.get_data()
             if data_msg is None: # Deal with empty queue
                 sleep(0.001)
             else:
-                logger.info("RX: %s", bytearr_to_hexstr(data_msg))
+                logger.info("RX: (%02X %02X) %s", data_msg.type, data_msg.index,
+                            bytearr_to_hexstr(data_msg.data))
 
             # Write mock CAN data
             if time() - print_last_t > 1.0:
                 print_last_t = time()
-                reader.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
-                reader.write_can_msg(mock_can_data_tx)
+                ser_int.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
+                ser_int.write_can_msg(mock_can_data_tx)
 
     except KeyboardInterrupt:
         logger.warning("User exited w/ Ctrl+C.")

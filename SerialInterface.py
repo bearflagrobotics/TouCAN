@@ -1,7 +1,7 @@
 """
 Copyright 2022 Bear Flag Robotics
 
-    SerialReader.py
+    SerialInterface.py
 
         Author: Austin Chun
         Date:   Aug 2022
@@ -21,11 +21,11 @@ import serial
 import serial.tools.list_ports
 from utils import bytearr_to_hexstr
 
-##########################################################################
-###                     CAN Reader Interface Class                     ###
-##########################################################################
-class SerialReader(object):
-    """ Library to read packets of data from """
+######################################################################
+###                     Serial Interface Class                     ###
+######################################################################
+class SerialInterface(object):
+    """ Library to read packets of data from USB Serial port Teensy"""
 
     ## Formatted Message Structure
     ##
@@ -56,12 +56,22 @@ class SerialReader(object):
         READ_CHKSM = 5
         READ_STRING = 6
 
+    class MsgPacket():
+        """ Simple Class to store message data and meta data"""
 
-    def __init__(self, serial_object, verbose=False, logger=None):
+        def __init__(self, type, index, len, data, chksm):
+            self.type = type
+            self.index = index
+            self.data_len = len
+            self.data = data
+            self.chksm = chksm
+
+
+
+    def __init__(self, serial_object, logger=None):
 
         # Input Arguments
         self.ser = serial_object # This is the already initialized serial port
-        self.verbose = verbose
         # Logging
         if logger is None:
             self.logger = logging.getLogger(__package__)
@@ -96,7 +106,11 @@ class SerialReader(object):
         self._dropped_packets_count = 0 # number of packets dropped
         self._bad_chksm_count = 0       # number of bad checksums
 
-        self.logger.info("SerialReader: Initialized.")
+        self.logger.info("SerialInterface: Initialized.")
+
+    ###############################################
+    ###                 Reading                 ###
+    ###############################################
 
     def read_threaded(self, timeout_ms=10):
         """ Read the serial port in a separate thread """
@@ -176,7 +190,7 @@ class SerialReader(object):
             elif self._read_state == self.ReadState.READ_TYPE:
                 self._rx_msg_type = cur_c
                 # Next State
-                if self._rx_msg_type == self.DATA_MSG_TYPE:
+                if self._rx_msg_type in [self.DATA_MSG_TYPE, self.CAN_MSG_TYPE]:
                     self._read_state = self.ReadState.READ_IDX
                 elif self._rx_msg_type == self.STRING_MSG_TYPE:
                     self._read_state = self.ReadState.READ_STRING
@@ -223,15 +237,19 @@ class SerialReader(object):
                 # Next State
                 if self._chksm_i >= self.CHKSM_LEN:
                     if self.verify_checksum(self._data_buff[:self._data_len_exp], self._chksm):
+                        msg = self.MsgPacket(self._rx_msg_type, self._msg_index, self._data_len_exp,
+                                             self._data_buff[:self._data_len_exp], self._chksm)
                         # Add data to queue (make room if needed)
                         try:
+                            self.data_queue.put_nowait(msg) # Store the data
                             # print(" Put here, Qsize: {}".format(self.data_queue.qsize()))
-                            self.data_queue.put_nowait(self._data_buff[:self._data_len_exp]) # Store the data
+                            # self.data_queue.put_nowait(self._data_buff[:self._data_len_exp]) # Store the data
                         except queue.Full:
                             # print(" Q ful")
                             self.logger.warning("Queue Full. Making space")
                             self.data_queue.get_nowait() # Pop an item
-                            self.data_queue.put_nowait(self._data_buff[:self._data_len_exp]) # Store the data
+                            self.data_queue.put_nowait(msg) # Store the data
+                            # self.data_queue.put_nowait(self._data_buff[:self._data_len_exp]) # Store the data
                     else:
                         self._bad_chksm_count += 1
                         self.logger.warning("Invalid chksm. (total invalid chksms: %d)", self._bad_chksm_count)
@@ -260,6 +278,10 @@ class SerialReader(object):
             bytearr_to_hexstr(self.START_BYTES + [self._rx_msg_type, self._msg_index, self._data_len_exp]),
             bytearr_to_hexstr(self._data_buff[:self._data_len_exp]),
             bytearr_to_hexstr(self._chksm))
+
+    ###############################################
+    ###                 Writing                 ###
+    ###############################################
 
     def write_data(self, data):
         """ TODO """
@@ -297,7 +319,9 @@ class SerialReader(object):
             if data[-1] != '\n':
                 self.ser.print('\n')
 
-
+    ###############################################
+    ###                 Helpers                 ###
+    ###############################################
 
     def verify_checksum(self, data, chksm):
         """ Verify the Fletcher16 checksum """
@@ -332,7 +356,7 @@ def main():
     ###############################################################################################
     ## Parse CLI input
     import argparse
-    # Argparserv
+    # Argparser
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', '-p',
                         help="Path to the device (eg. /dev/ttyACM0 (Unix), or COM7 (Windows)",
@@ -352,7 +376,7 @@ def main():
         from CustomLogger import CustomLogger
         # Init Logger
         logger = CustomLogger(
-            "SerialReader.py",
+            "SerialInterface.py",
             level=logger_lvl,
             verbose=verbose,
             color=color
@@ -366,19 +390,19 @@ def main():
     from utils import open_serial_port_blocking
     ser = open_serial_port_blocking(port_path=port_path)
 
-    # Initialize SerialReader object (for threaded serial read process)
-    reader = SerialReader(ser, verbose=True, logger=logger)
+    # Initialize SerialInterface object (for threaded serial read process)
+    ser_int = SerialInterface(ser, logger=logger)
 
     ###########################################################
     # # Non-threaded run
     # try:
-    #     reader.read()
+    #     ser_int.read()
     # except KeyboardInterrupt:
     #     logger.warning("User exited w/ Ctrl+C.")
     ###########################################################
 
     # Start a thread to read serial data
-    reader.read_threaded()
+    ser_int.read_threaded()
 
     mock_can_data_tx = [
         0x00, 0x04, 0x0F, 0x0C, # ID, LSB
@@ -390,33 +414,34 @@ def main():
     try:
         print_last_t = time()
         while True:
-            data_msg = reader.get_data()
+            data_msg = ser_int.get_data()
             # Deal with empty queue
             if data_msg is None:
                 sleep(0.001)
 
                 # continue
             else:
-                logger.info("RX: %s", bytearr_to_hexstr(data_msg))
+                # logger.info("RX: %s", bytearr_to_hexstr(data_msg))
+                logger.info("RX: %s", bytearr_to_hexstr(data_msg.data))
 
 
             # if time() - print_last_t > 1.0:
             #     print_last_t = time()
             #     # Write Data
-            #     reader.logger.debug("TX: %s", bytearr_to_hexstr(test_tx_data))
-            #     reader.write_data(test_tx_data)
+            #     ser_int.logger.debug("TX: %s", bytearr_to_hexstr(test_tx_data))
+            #     ser_int.write_data(test_tx_data)
             #     test_tx_data[0] = (test_tx_data[0] + 1) % 256
             #     # # Write String
             #     # tx_str = "Hello World2!"
-            #     # reader.logger.debug("TX: %s", tx_str)
-            #     # reader.write_string(tx_str)
+            #     # ser_int.logger.debug("TX: %s", tx_str)
+            #     # ser_int.write_string(tx_str)
 
 
             # Write mock CAN data
             if time() - print_last_t > 1.0:
                 print_last_t = time()
-                reader.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
-                reader.write_can_msg(mock_can_data_tx)
+                ser_int.logger.debug("TX: %s", bytearr_to_hexstr(mock_can_data_tx))
+                ser_int.write_can_msg(mock_can_data_tx)
 
 
     except KeyboardInterrupt:
