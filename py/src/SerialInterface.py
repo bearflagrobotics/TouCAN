@@ -17,9 +17,8 @@ import logging
 import queue
 import threading
 import struct
-import serial
-import serial.tools.list_ports
-from utils import bytearr_to_hexstr
+
+from src.Utils import bytearr_to_hexstr
 
 ######################################################################
 ###                     Serial Interface Class                     ###
@@ -28,11 +27,10 @@ class SerialInterface(object):
     """ Library to read packets of data from USB Serial port Teensy"""
 
     ## Formatted Message Structure
-    ##
-    ##          START_BYTES  INDEX  DATA_LEN   DATA                        CHKSM
-    ## eg.      00 55        00     08         00 11 22 33 44 55 66 77     9D 4F <made up
-    ## eg.      00 55        01     04         00 11 22 33                 C2 35 <made up
-    ## eg.      00 55        02     06         00 11 22 33 44 55           4D EA <made up
+    #
+    #   See README
+    #
+    #
 
     # Class "constants"
     START_BYTES = bytearray([ 0x00, 0x55 ])
@@ -373,7 +371,7 @@ def main():
     ###############################################################################################
 
     try:
-        from CustomLogger import CustomLogger
+        from src.CustomLogger import CustomLogger
         # Init Logger
         logger = CustomLogger(
             "SerialInterface.py",
@@ -387,7 +385,7 @@ def main():
 
 
     # Establish serial connection
-    from utils import open_serial_port_blocking
+    from src.Utils import open_serial_port_blocking
     ser = open_serial_port_blocking(port_path=port_path)
 
     # Initialize SerialInterface object (for threaded serial read process)

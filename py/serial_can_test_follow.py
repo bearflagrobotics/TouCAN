@@ -1,9 +1,9 @@
 """
 Copyright 2022 Bear Flag Robotics
 
-    lead_serial_can_test.py
+    follow_serial_can_test.py
 
-        test CAN serial, this is the lead node
+        test CAN serial, this is the follow node
 
         Author: Austin Chun
         Date:   Aug 2022
@@ -15,9 +15,9 @@ from time import time, sleep
 import logging
 import argparse
 
-from utils import open_serial_port_blocking
+from src.Utils import open_serial_port_blocking
 
-from SerialInterface import *
+from src.SerialInterface import SerialInterface
 
 
 # ==================================================================================================
@@ -45,7 +45,7 @@ def main():
 
     ## Setup the logger
     try:
-        from CustomLogger import CustomLogger
+        from src.CustomLogger import CustomLogger
         # Init Logger
         logger = CustomLogger(
             "SerialInterface.py",
@@ -70,10 +70,10 @@ def main():
 
 
     mock_can_data_tx = [
-        0x00, # Bus ID
-        0x00, 0x04, 0x0F, 0x0C, # ID, LSB first
-        0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
-        # 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 # data
+        0x01, # Bus ID
+        0x00, 0x03, 0xF0, 0x0C, # ID, LSB first
+        # 0xF0, 0xFF, 0x94, 0x90, 0x1A, 0xFF, 0xFF, 0xFF # data
+        0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99, 0x88 # data
     ]
 
     # Mock: Simulate processing the data from the queue

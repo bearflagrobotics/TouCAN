@@ -3,6 +3,16 @@ Copyright 2022 Bear Flag Robotics
 
     convert_asc_to_log.py
 
+        asc:
+            0.000000 1 04EF0006x Rx d 8 64 15 18 F1 00 40 10 0E
+            0.000000 1 0CF00300x Rx d 8 FF FE 1B FF FE FF FF FF
+            0.000000 1 0CEFFF00x Rx d 8 64 06 3A 7D FF FF FF FF
+
+        log:
+            (001266.491) can0 04EF0006#641518F10040100E
+            (001266.491) can0 0CF00300#FFFE1BFFFEFFFFFF
+            (001266.491) can0 0CEFFF00#64063A7DFFFFFFFF
+
     Author: Austin Chun
     Date:   Aug 2022
 """

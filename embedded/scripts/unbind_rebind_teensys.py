@@ -76,8 +76,10 @@ def before_upload(source, target, env):
     if 'UPLOAD_PORT' in env:
         des_uc_id = utils.check_port_for_teensy(env['UPLOAD_PORT'])
     else:
-        des_uc_id, des_boot_id = read_config_file(env)
-
+        try:
+            des_uc_id, des_boot_id = read_config_file(env)
+        except FileNotFoundError:
+            pass
 
     # Get all Teensy ids, and corresponding locations
     all_ids, all_locs, all_paths = utils.find_teensy_ports()

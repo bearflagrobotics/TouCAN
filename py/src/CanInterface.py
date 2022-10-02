@@ -23,15 +23,14 @@ Copyright 2022 Bear Flag Robotics
 from collections import namedtuple, OrderedDict
 
 from time import time, sleep
-from datetime import datetime
 import logging
 import struct
 
-from utils import open_serial_port_blocking, bytearr_to_hexstr
-from can_utils import CanMsg
+from src.Utils import open_serial_port_blocking, bytearr_to_hexstr
+from src.UtilsCan import CanMsg
 
 
-from SerialInterface import SerialInterface
+from src.SerialInterface import SerialInterface
 
 
 class CanInterface(object):

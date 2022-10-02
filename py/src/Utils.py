@@ -1,7 +1,7 @@
 """
 Copyright 2022 Bear Flag Robotics
 
-    utils.py
+    Utils.py
 
         Store useful/common functiosn for log files.
 
@@ -11,9 +11,7 @@ Copyright 2022 Bear Flag Robotics
 
 # pylint: disable=C0326, C0103, C0111, W0612, C0301, C0305
 
-import math
 from time import time, sleep
-import yaml
 import serial
 
 
