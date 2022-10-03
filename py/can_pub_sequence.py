@@ -17,14 +17,12 @@ from time import time, sleep
 import logging
 import argparse
 import struct
-from tracemalloc import start
 
 from src.Utils import open_serial_port_blocking, bytearr_to_hexstr
 from src.UtilsCan import CanMsg
 
 from src.CanInterface import CanInterface
 
-# ==================================================================================================
 
 class CanMsgSequence:
     def __init__(self, startt, freq, dur, bus, ID, data):
@@ -45,7 +43,7 @@ LINE_ELEMENT_LEN = 6
 
 def can_tx_sequence_file(filename):
 
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
     can_msg_sequences = []
@@ -76,6 +74,8 @@ def can_tx_sequence_file(filename):
             print(" Type error: ", e)
 
     return can_msg_sequences
+
+# ==================================================================================================
 
 def main():
     """ TODO """

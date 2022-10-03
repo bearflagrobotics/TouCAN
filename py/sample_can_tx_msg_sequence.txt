@@ -4,6 +4,12 @@
 #
 # Space Separated
 # Assumes StartTime is sorted increasing
+# Example line:
+#
+#   StartTime   Freq     Duration    Bus     ID        Data
+#   002.000     3        2.0         0       0CABCDEF  AABBCCDDABCDDCBA
+#   005.000     3        4.0         1       181234E0  1122334412344321
+
 
 # StartTime   Freq     Duration    Bus     ID        Data
 002.000        3       1.0         0       0CABCDEF  AABBCCDDABCDDCBA
