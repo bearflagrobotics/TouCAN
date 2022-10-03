@@ -15,7 +15,7 @@ from time import time, sleep
 import logging
 import argparse
 
-from src.Utils import open_serial_port_blocking
+from src.Utils import open_serial_port_blocking, bytearr_to_hexstr
 
 from src.SerialInterface import SerialInterface
 

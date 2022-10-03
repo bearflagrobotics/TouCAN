@@ -38,7 +38,7 @@ void setup() {
 
     // Setup Serial
     serial.begin(1);
-    while (!Serial) {  // Blocking wait for Serial port to open
+    while (!serial.IsUp()) {  // Blocking wait for Serial port to open
         if (millis() - led_last_t > 2000) {
             led_last_t = millis();
             digitalWriteFast(LED_PIN, led_state);
@@ -70,14 +70,14 @@ void loop() {
         // Echo back Serial
         if (serial.IsUp()) {
             serial.PrintStringHeader();
-            Serial.print("uC Rx: ");
+            serial.print("uC Rx: ");
             for (int i = 0; i < serial.data_len_exp; ++i) {
-                Serial.print(serial.data_buff[i], HEX);
-                Serial.print(" ");
+                serial.print(serial.data_buff[i], HEX);
+                serial.print(" ");
             }
-            // Serial.print("Hello back!");
-            // Serial.print(test_data[0]);
-            Serial.println();
+            // serial.print("Hello back!");
+            // serial.print(test_data[0]);
+            serial.println();
         }
 
         // Echo CAN data to can bus
@@ -96,21 +96,16 @@ void loop() {
 
             if (serial.IsUp()) {
                 serial.PrintStringHeader();
-                Serial.print("tx_msg.id: ");
-                Serial.print(tx_msg.id, HEX);
-                Serial.print(", tx_msg.len: ");
-                Serial.print(tx_msg.len, HEX);
-                Serial.println();
+                serial.print("tx_msg.id: ");
+                serial.print(tx_msg.id, HEX);
+                serial.print(", tx_msg.len: ");
+                serial.print(tx_msg.len, HEX);
+                serial.println();
             }
 
         }
 
     }
-
-    // // Write (Relay) CAN msgs (from Serial to CAN)
-    // if (serial.available()) {
-    //     // TODO: Develop SerialParser, so can send CAN smgs from Python script
-    // }
 
     // Blink the LED (slow when serial down, fast when serial up)
     led_wait_time = serial.IsUp() ? 100 : 500;

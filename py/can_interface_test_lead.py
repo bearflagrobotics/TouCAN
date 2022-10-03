@@ -87,11 +87,11 @@ def main():
             if time() - print_t1 > 1.0:
                 print_t1 = time()
                 can_int.write_can_msg(msg_0123)
-                logger.debug("Transmit: %s", msg_0123.log_str)
+                logger.debug("Transmit: %s", msg_0123.log_str())
             if time() - print_t2 > 2.0:
                 print_t2 = time()
                 can_int.write_can_msg(msg_9876)
-                logger.debug("Transmit: %s", msg_9876.log_str)
+                logger.debug("Transmit: %s", msg_9876.log_str())
 
 
     except KeyboardInterrupt:

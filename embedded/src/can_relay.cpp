@@ -41,14 +41,13 @@ void setup() {
 
     // Setup Serial
     serial.begin(1);
-    while (!Serial) {  // Blocking wait for Serial port to open
+    while (!serial.IsUp()) {  // Blocking wait for Serial port to open
         if (millis() - led_last_t > 2000) {
             led_last_t = millis();
             digitalWriteFast(LED_PIN, led_state);
             led_state = !led_state;  // Toggle LED
         }
     }
-    serial_up = true;
     serial.PrintStringHeader();
     serial.println("Running 'can_relay.cpp'");
 }
@@ -87,9 +86,9 @@ void loop() {
                 can1.WriteCan(tx_msg);
             } else {
                 serial.PrintStringHeader();
-                Serial.print("ERROR: Unknown bus_id: 0x");
-                Serial.print(bus_id, HEX);
-                Serial.println();
+                serial.print("ERROR: Unknown bus_id: 0x");
+                serial.print(bus_id, HEX);
+                serial.println();
             }
         }
         // Data Msg Type: Nothing

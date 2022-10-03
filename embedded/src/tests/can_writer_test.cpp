@@ -41,6 +41,7 @@ bool led_state = 0;
 uint32_t last_led_t;  // Log time of last LED toggle
 uint32_t led_wait_time;  // How long between LED toggles (changes based on USB connection)
 
+bool serial_up = false;
 
 ////////////////////////////////////////////////////////////////////////////
 ///                         Setup/Loop Functions                         ///
@@ -77,13 +78,5 @@ void loop() {
         digitalWriteFast(LED_PIN, led_state);
         led_state = !led_state;
     }
-
-    // Read CAN
-
-
-    // // Print CAN msgs if Serial up
-    // if (serial_up) {
-    //     if (can0)
-    // }
 
 }

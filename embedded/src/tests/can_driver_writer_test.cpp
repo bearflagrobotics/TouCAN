@@ -79,22 +79,17 @@ void loop() {
 
         if (serial.IsUp()) {
             serial.PrintStringHeader();
-            Serial.print("uC Rx: ");
+            serial.print("uC Rx: ");
             for (int i = 0; i < serial.data_len_exp; ++i) {
-                Serial.print(serial.data_buff[i], HEX);
-                Serial.print(" ");
+                serial.print(serial.data_buff[i], HEX);
+                serial.print(" ");
             }
-            // Serial.print("Hello back!");
-            // Serial.print(test_data[0]);
-            Serial.println();
+            // serial.print("Hello back!");
+            // serial.print(test_data[0]);
+            serial.println();
         }
 
     }
-
-    // // // Write (Relay) CAN msgs (from Serial to CAN)
-    // // if (serial.available()) {
-    // //     // TODO: Develop SerialParser, so can send CAN smgs from Python script
-    // // }
 
     // Blink the LED (slow when serial down, fast when serial up)
     led_wait_time = serial.IsUp() ? 100 : 500;

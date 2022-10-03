@@ -40,13 +40,15 @@ class CanMsg(object):
         self.pgn, self.priority, self.pdu_format, self.pdu_specific, \
             self.source, self.destination = parse_can_id(ID)
 
-        # Helpful strings
-        self.data_str = ''.join(format(x, '02X') for x in data)
-        self.log_str = "({:011.6f}) can{:d} {:08X}#{:s}".format(
+    # Helpful strings
+    def data_str(self):
+        return ''.join(format(x, '02X') for x in self.data)
+    def log_str(self):
+        return "({:011.6f}) can{:d} {:08X}#{:s}".format(
                 self.timestamp,
                 self.bus,
                 self.ID,
-                self.data_str
+                self.data_str()
         )
 
 #####################################################

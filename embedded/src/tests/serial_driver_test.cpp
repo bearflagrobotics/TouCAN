@@ -31,12 +31,12 @@ uint32_t print_last_t;
 
 void setup() {
     while (!Serial) {}
-    Serial.begin(1);
+    serial.begin(1);
 
     pinMode(LED_PIN, OUTPUT);
 
     serial.PrintStringHeader();
-    Serial.println("Running serial_driver_test.cpp");
+    serial.println("Running serial_driver_test.cpp");
 }
 
 void loop() {
@@ -50,9 +50,9 @@ void loop() {
         // WARNING: Calling Serial.print() when Serial not up will freeze the uC
         if (serial.IsUp()) {
             serial.PrintStringHeader();
-            Serial.print("uC Tx: Hello World! ");
-            Serial.print(test_data[0]);
-            Serial.println();
+            serial.print("uC Tx: Hello World! ");
+            serial.print(test_data[0]);
+            serial.println();
         }
     }
 
@@ -63,14 +63,14 @@ void loop() {
 
         if (serial.IsUp()) {
             serial.PrintStringHeader();
-            Serial.print("uC Rx: ");
+            serial.print("uC Rx: ");
             for (int i = 0; i < serial.data_len_exp; ++i) {
-                Serial.print(serial.data_buff[i], HEX);
-                Serial.print(" ");
+                serial.print(serial.data_buff[i], HEX);
+                serial.print(" ");
             }
-            // Serial.print("Hello back!");
-            // Serial.print(test_data[0]);
-            Serial.println();
+            // serial.print("Hello back!");
+            // serial.print(test_data[0]);
+            serial.println();
         }
 
     }

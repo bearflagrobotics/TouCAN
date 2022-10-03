@@ -1,0 +1,12 @@
+# sample_can_tx_msg_sequence.txt
+#
+# Sample configuration file for sequencing messages to transmit over CAN
+#
+# Space Separated
+# Assumes StartTime is sorted increasing
+
+# StartTime   Freq     Duration    Bus     ID        Data
+002.000        3       1.0         0       0CABCDEF  AABBCCDDABCDDCBA
+002.000        3       1.0         1       181234E0  1122334412344321
+005.000        2       4.0         0       0CABCDEF  FFBBCCDDABCDDCBA
+

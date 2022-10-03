@@ -233,7 +233,7 @@ class CanInterface(object):
             # self.logger.debug("  timeout: %d", msg.timeout)
             self.logger.debug("  data: %s", bytearr_to_hexstr(msg.data))
         else:
-            self.logger.debug("Receive:  %s", msg.log_str)
+            self.logger.debug("Receive:  %s", msg.log_str())
 
     def log_can_data(self, msg, canparse_fmt=True):
         """ Log data to log file """
@@ -247,7 +247,7 @@ class CanInterface(object):
                     bytearr_to_hexstr(msg.data, delimiter=' '),
                 )
             else:
-                self.data_log.info(msg.log_str)
+                self.data_log.info(msg.log_str())
 
 # ==================================================================================================
 
@@ -281,7 +281,7 @@ def main():
             if time() - tx_t1 > 1.0:
                 tx_t1 = time()
                 can_int.write_can_msg(msg_1)
-                can_int.logger.info("Transmit: %s", msg_1.log_str)
+                can_int.logger.info("Transmit: %s", msg_1.log_str())
 
     except KeyboardInterrupt:
         can_int.logger.warning("User exited w/ Ctrl+C.")

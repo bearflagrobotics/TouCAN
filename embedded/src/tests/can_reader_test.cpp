@@ -36,7 +36,7 @@ void setup() {
 
     // Setup Serial
     serial.begin(1);
-    while (!serial) {  // Blocking wait for Serial port to open
+    while (!serial.IsUp()) {  // Blocking wait for Serial port to open
         if (millis() - led_last_t > 2000) {
             led_last_t = millis();
             digitalWriteFast(LED_PIN, led_state);
