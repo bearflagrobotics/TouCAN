@@ -18,6 +18,9 @@
 
 #include <can_driver.h>
 
+// #include "test_log_playback.h"
+#include "5R_AutoTracEngaged_TouCAN.h"
+
 bool serial_up = false;  // Flag used for some LED diagnostics
 
 // Create CAN Bus object
@@ -56,6 +59,9 @@ uint32_t led_last_t;  // Log time of last LED toggle
 uint32_t led_wait_time;  // How long between LED toggles (changes based on USB connection)
 
 
+uint32_t data_log_i = 0;
+const int K_NUM_MSGS = sizeof(DATA_LOG) / sizeof(CanPlaybackMsg);
+
 ////////////////////////////////////////////////////////////////////////////
 ///                         Setup/Loop Functions                         ///
 ////////////////////////////////////////////////////////////////////////////
@@ -75,13 +81,29 @@ void setup() {
 
 void loop() {
 
-    // Periodically transmit msgs
-    if (millis() - last_tx_t > 1000) {
-        last_tx_t = millis();
-        can0.WriteCan(tx_msg_0);
-        can1.WriteCan(tx_msg_1);
-        tx_msg_0.buf[0]++;
-    }
+    // // Periodically transmit msgs
+    // if (millis() - last_tx_t > 1) {
+    //     last_tx_t = millis();
+    //     can0.WriteCan(tx_msg_0);
+    //     can1.WriteCan(tx_msg_1);
+    //     tx_msg_0.buf[0]++;
+    // }
+
+    // if (millis() - last_tx_t > 1000) { last_tx_t = millis();
+        if (data_log_i++ < K_NUM_MSGS) {
+            if (DATA_LOG[data_log_i].bus == 1) {
+                can0.WriteCan(DATA_LOG[data_log_i].msg);
+            } else {
+                can1.WriteCan(DATA_LOG[data_log_i].msg);
+            }
+        } else {
+            data_log_i = 0;
+            // digitalWriteFast(LED_PIN, led_state);  // Toggle LED
+            // led_state = !led_state;
+        }
+    // }
+
+
 
     // Read CAN bus, re-transmit with changed source address
     for (int i = 0; i < MAX_READ_LOOP; ++i) {
@@ -91,6 +113,11 @@ void loop() {
             // Change source address
             rx_echo_msg.id = (rx_echo_msg.id & 0x1FFFFF00) | CAN_SOURCE_ADDRESS;
             can0.WriteCan(rx_echo_msg);
+            // Flicker LED
+            digitalWriteFast(LED_PIN, led_state);  // Toggle LED
+            led_state = !led_state;
+            // digitalWriteFast(LED_PIN, led_state);  // Toggle LED
+            // led_state = !led_state;
         }
         if (can1.ReadCan()) {
             // Copy all data
@@ -101,11 +128,11 @@ void loop() {
         }
     }
 
-    // Blink the LED (slow when serial down, fast when serial up)
-    led_wait_time = (Serial) ? 50 : 200;
-    if (millis() - led_last_t > led_wait_time) {
-        led_last_t = millis();
-        digitalWriteFast(LED_PIN, led_state);  // Toggle LED
-        led_state = !led_state;
-    }
+    // // Blink the LED (slow when serial down, fast when serial up)
+    // led_wait_time = (Serial) ? 50 : 200;
+    // if (millis() - led_last_t > led_wait_time) {
+    //     led_last_t = millis();
+    //     digitalWriteFast(LED_PIN, led_state);  // Toggle LED
+    //     led_state = !led_state;
+    // }
 }

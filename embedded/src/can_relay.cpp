@@ -18,9 +18,30 @@
 SerialDriver serial = SerialDriver();
 bool serial_up = false;  // Flag used for some LED diagnostics
 
-// Create CAN Bus object
-CanDriver can0 = CanDriver(500000, 0);  // Standard Baud of Vehicle Bus
-CanDriver can1 = CanDriver(250000, 1);  // Standard Baud of Implement Bus (ISOBUS)
+
+// // TODO: Remove these filters, only necessary for slow python processing
+// uint32_t mask0 = 0x00FFFFFF;
+// uint32_t mask1 = 0x00FFFFFF;
+
+// CAN_filter_t filt00 {0x0, 0x1, 0x00FFFE03};  // PowerTrainCondition3
+// CAN_filter_t filt01 {0x0, 0x1, 0x00FFFB31};  // OperatorSwitchControls4
+// CAN_filter_t filt02 {0x0, 0x1, 0x00FFFF1C};  // GpsStatus
+// CAN_filter_t filt03 {0x0, 0x1, 0x00FFFE91};  // FrontConsoleSignalsMisc1
+
+// CAN_filter_t filt10 {0x0, 0x1, 0x00FEF31C};  // VehiclePosition
+// CAN_filter_t filt11 {0x0, 0x1, 0x00FEE81C};  // DirectionSpeed
+// CAN_filter_t filt12 {0x0, 0x1, 0x00AC00F0};  // GuidanceMachineStatus
+// CAN_filter_t filt13 {0x0, 0x1, 0x00FFFAF0};  // ExternalGuidanceCommandAndState
+// CAN_filter_t filt14 {0x0, 0x1, 0x00FFFAF0};  // VehicleAutomationStatus
+// CAN_filter_t filt15 {0x0, 0x1, 0x00FEFCF0};  // DashDisplay
+
+// // Create CAN Bus object
+// CanDriver can0 {500000, 0, 0, 0, mask0};  // Standard Baud of Vehicle Bus
+// CanDriver can1 {250000, 1, 0, 0, mask1};  // Standard Baud of Implement Bus (ISOBUS)
+
+CanDriver can0 {500000, 0};  // Standard Baud of Vehicle Bus
+CanDriver can1 {250000, 1};  // Standard Baud of Implement Bus (ISOBUS)
+
 
 CAN_message_t tx_msg;  // Object for storing message for writing to CAN bus
 const uint8_t MAX_READ_LOOP = 50;  // Max number of loops to read CAN bus
@@ -38,6 +59,16 @@ uint32_t led_wait_time;  // How long between LED toggles (changes based on USB c
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);  // Setup LED
+
+    // // Setup filters
+    // can0.SetCanFilter(filt00, 0); can1.SetCanFilter(filt10, 0);
+    // can0.SetCanFilter(filt01, 1); can1.SetCanFilter(filt11, 1);
+    // can0.SetCanFilter(filt02, 2); can1.SetCanFilter(filt12, 2);
+    // can0.SetCanFilter(filt03, 3); can1.SetCanFilter(filt13, 3);
+    // can0.SetCanFilter(filt00, 4); can1.SetCanFilter(filt14, 4);
+    // can0.SetCanFilter(filt00, 5); can1.SetCanFilter(filt15, 5);
+    // can0.SetCanFilter(filt00, 6); can1.SetCanFilter(filt10, 6);
+    // can0.SetCanFilter(filt00, 7); can1.SetCanFilter(filt10, 7);
 
     // Setup Serial
     serial.begin(1);
