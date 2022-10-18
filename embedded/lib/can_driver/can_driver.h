@@ -44,8 +44,9 @@ class CanDriver {
     ///////////////////////////
     ///      Functions      ///
     ///////////////////////////
-    CanDriver(uint32_t baud, uint8_t id, uint8_t tx_alt = 0, uint8_t rx_alt = 0);
+    CanDriver(uint32_t baud, uint8_t id, uint8_t tx_alt = 0, uint8_t rx_alt = 0, uint32_t mask_id = 0x00000000);
 
+    void SetCanFilter(const CAN_filter_t& filter, uint8_t filter_num); // simple wrapper
     bool ReadCan();
     void WriteCan(const CAN_message_t& can_msg);
 
@@ -54,6 +55,7 @@ class CanDriver {
     ///////////////////////////
 
     FlexCAN can_;  // The underlying CAN interface object
+    CAN_filter_t mask_;  // Allow for filtering mask
     uint8_t msg_idx_;  // Keep track of the message index as received
     CanMsg rx_msg_;  // Received msg from CAN bus
     uint8_t bus_id_;  // Which CAN bus is this tied to

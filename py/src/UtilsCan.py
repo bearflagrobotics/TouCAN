@@ -23,7 +23,6 @@ class CanMsg(object):
         self.is_rtr = False
         self.is_extended = True
         self.is_error = False
-        self.dlc = 0 # uint8
 
         # Metadata
         self.timestamp = timestamp

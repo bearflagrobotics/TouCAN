@@ -13,6 +13,7 @@ Copyright 2022 Bear Flag Robotics
 
 from time import time, sleep
 import serial
+import serial.tools.list_ports
 
 
 #####################################################

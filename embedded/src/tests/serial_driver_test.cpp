@@ -30,7 +30,7 @@ uint32_t print_last_t;
 ////////////////////////////////////////////////////////////////////////////
 
 void setup() {
-    while (!Serial) {}
+    while (!serial) {}
     serial.begin(1);
 
     pinMode(LED_PIN, OUTPUT);
@@ -42,16 +42,17 @@ void setup() {
 void loop() {
     // Write data periodically
     if (millis() - print_last_t > 1000) {
-        test_data[0]++;
-        serial.WriteData(test_data, sizeof(test_data));
         print_last_t = millis();
-
         // Print Strings
         // WARNING: Calling Serial.print() when Serial not up will freeze the uC
         if (serial.IsUp()) {
+
+            test_data[0]++;
+            serial.WriteData(test_data, sizeof(test_data));
+
             serial.PrintStringHeader();
-            serial.print("uC Tx: Hello World! ");
-            serial.print(test_data[0]);
+            serial.print("uC Tx: Hello World! 0x");
+            serial.print(test_data[0], HEX);
             serial.println();
         }
     }

@@ -16,10 +16,18 @@
 #include <FlexCAN.h>
 
 
-CanDriver::CanDriver(uint32_t baud, uint8_t id, uint8_t tx_alt, uint8_t rx_alt)
+CanDriver::CanDriver(uint32_t baud, uint8_t id, uint8_t tx_alt, uint8_t rx_alt, uint32_t mask_id)
     : can_(baud, id, tx_alt, rx_alt), bus_id_(id)
 {
-    can_.begin();
+    mask_.rtr = 0x0;
+    mask_.ext = 0x1;
+    mask_.id = mask_id;
+    can_.begin(mask_);
+}
+
+// Simple wrapper
+void CanDriver::SetCanFilter(const CAN_filter_t& filter, uint8_t filter_num) {
+    can_.setFilter(filter, filter_num);
 }
 
 

@@ -27,18 +27,21 @@ CanDriver can1 = CanDriver(250000, 1);  // Standard Baud of Implement Bus (ISOBU
 
 uint32_t last_tx_t;      // Log when last transmitted (for periodic transmit)
 CAN_message_t tx_msg_0 {
-    0x0C123456,  // ID
+    0x01234567,  // ID
     1,           // Ext
     8,           // Len
     0,           // Timeout
     {0x11, 0x22, 0x33, 0x44, 0x12, 0x34, 0x43, 0x21}  // Data
 };
-CAN_message_t tx_msg_1 {
-    0x11FEDCBA,  // ID
+
+// FEF3: GPS Location
+//      1.138000 2 0CFEF31Cx Rx d 8 69 23 8C 93 37 0B 6B 34
+CAN_message_t tx_msg_1 { // GPS Location
+    0x0CFEF31C,  // ID
     1,           // Ext
     8,           // Len
     0,           // Timeout
-    {0xFF, 0xEE, 0xDD, 0xCC, 0xFE, 0xDC, 0xCD, 0xEF}  // Data
+    {0x69, 0x23, 0x8C, 0x93, 0x37, 0x0B, 0x6B, 0x34}  // Data
 };
 
 
@@ -77,6 +80,7 @@ void loop() {
         last_tx_t = millis();
         can0.WriteCan(tx_msg_0);
         can1.WriteCan(tx_msg_1);
+        tx_msg_0.buf[0]++;
     }
 
     // Read CAN bus, re-transmit with changed source address

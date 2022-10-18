@@ -92,9 +92,11 @@ The Can Interface uses the Serial Interface to communicate with the TouCAN. Some
     - USB               (to computer)
 
 - <details> <summary> Verify permissions on USB port </summary>
-
     - `ll /dev/tty*` and make sure rw permissions
         - `chmod a+rw /dev/ttyACM<number>`
+    - udev rules (for Teensy, via PlatformIO)
+
+
   </details>
 
 - <details> <summary> Flash multiple Teensys permissions (optional) </summary>
@@ -186,5 +188,5 @@ TODO:
 
 ## Requirements
 - PlatformIO Core
-- `pip install checksumdir`
+- `pip install checksumdir pyserial`
 -
