@@ -89,7 +89,7 @@ void loop() {
     //     tx_msg_0.buf[0]++;
     // }
 
-    // if (millis() - last_tx_t > 1000) { last_tx_t = millis();
+    if (millis() - last_tx_t > 1) { last_tx_t = millis();
         if (data_log_i++ < K_NUM_MSGS) {
             if (DATA_LOG[data_log_i].bus == 1) {
                 can0.WriteCan(DATA_LOG[data_log_i].msg);
@@ -101,7 +101,7 @@ void loop() {
             // digitalWriteFast(LED_PIN, led_state);  // Toggle LED
             // led_state = !led_state;
         }
-    // }
+    }
 
 
 
